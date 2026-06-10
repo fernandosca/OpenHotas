@@ -1,1 +1,0 @@
-Custom PCB for a modular HOTAS controller based on the RP2350 and MT6826S magnetic sensor. Designed for high precision input, USB HID communication, and easy assembly with BOM, Gerber files, and Pick & Place data included for manufacturing.
