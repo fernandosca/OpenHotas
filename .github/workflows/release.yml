@@ -30,9 +30,11 @@ jobs:
         working-directory: firmware
         run: cargo build --release --target thumbv8m.main-none-eabihf
 
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
+
       - name: Install elf2uf2-rs
         run: cargo install elf2uf2-rs
-
       - name: Copy ELF
         run: cp firmware/target/thumbv8m.main-none-eabihf/release/openhotas openhotas.elf
 
