@@ -1,36 +1,36 @@
 name: OpenHOTAS CI
 
 on:
-  push:
-  pull_request:
+    push:
+    pull_request:
 
 jobs:
-  firmware:
-    runs-on: ubuntu-latest
+    firmware:
+        runs-on: ubuntu-latest
 
-    defaults:
-      run:
-        working-directory: firmware
+        defaults:
+            run:
+                working-directory: firmware
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v5
 
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: thumbv8m.main-none-eabihf
+            - name: Install Rust stable
+              uses: dtolnay/rust-toolchain@stable
+              with:
+                  targets: thumbv8m.main-none-eabihf
 
-      - name: Cache Rust
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: firmware
+            - name: Cache Rust
+              uses: Swatinem/rust-cache@v2
+              with:
+                  workspaces: firmware
 
-      - name: Build
-        run: cargo build --release
+            - name: Build
+              run: cargo build --release --target thumbv8m.main-none-eabihf
 
-      - name: Clippy
-        run: cargo clippy --target thumbv8m.main-none-eabihf -- -D warnings
+            - name: Clippy
+              run: cargo clippy --target thumbv8m.main-none-eabihf -- -D warnings
 
-      - name: Format check
-        run: cargo fmt --check
+            - name: Format check
+              run: cargo fmt --check
