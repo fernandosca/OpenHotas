@@ -45,6 +45,24 @@ target = "thumbv8m.main-none-eabihf"
 
 ---
 
+## Hardware Compatibility
+
+This firmware is primarily developed for the custom OpenHOTAS hardware platform.
+
+Default pin assignments, peripheral mappings, and hardware configurations are designed around the OpenHOTAS PCBs found in the `hardware/` directory.
+
+When adapting the firmware to other RP2350-based boards, developers should review and adjust:
+
+* GPIO assignments
+* SPI bus configuration
+* Chip Select mappings
+* Interrupt pins
+* Peripheral connections
+
+Refer to the hardware documentation for the reference implementation.
+
+---
+
 ## Requirements
 
 Install the Rust target:
