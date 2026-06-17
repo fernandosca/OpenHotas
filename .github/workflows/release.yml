@@ -1,0 +1,47 @@
+name: OpenHOTAS Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  firmware-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv8m.main-none-eabihf
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: firmware
+
+      - name: Build firmware
+        working-directory: firmware
+        run: cargo build --release --target thumbv8m.main-none-eabihf
+
+      - name: Install elf2uf2-rs
+        run: cargo install elf2uf2-rs
+
+      - name: Copy ELF
+        run: cp firmware/target/thumbv8m.main-none-eabihf/release/openhotas openhotas.elf
+
+      - name: Generate UF2
+        run: elf2uf2-rs openhotas.elf openhotas.uf2
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            openhotas.elf
+            openhotas.uf2
