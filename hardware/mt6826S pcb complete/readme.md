@@ -1,59 +1,75 @@
-# 🧲 MT6826S High-Precision Sensor Breakout Board
+# 🧲 MT6826S Sensor Board
 
-🚧 **Project Status: Active Development / Hardware Integration (WIP)**
+Compact breakout board designed for the MagnTek MT6826S magnetic encoder.
 
-This hardware module is currently in its active testing and validation phase. 
-
-The Revision 1.1 layout has been fully routed, electrically inspected, and verified against high-speed SPI signal constraints. While the electrical design is locked, future minor revisions may introduce subtle mechanical footprint optimizations based on real-world integration with custom 3D-printed gimbal assemblies.
+This board is part of the OpenHOTAS ecosystem and provides a simple, reliable, and easy-to-integrate solution for high-resolution contactless position sensing in custom flight simulation hardware.
 
 ---
 
-## 🎯 Overview
+## Overview
 
-The **MT6826S Sensor Board** is an ultra-compact, high-signal-integrity breakout board engineered specifically for the MagnTek MT6826S 15-bit magnetic encoder. This satellite board functions as the precise angular tracking node for advanced motion-control systems.
+The MT6826S Sensor Board is intended for use in applications requiring precise angular position measurement, including:
 
-Designed as an official hardware component of the **OpenHOTAS** ecosystem, this PCB's physical dimensions and mounting holes are precision-tailored to fit seamlessly into modified STL files of community gimbals, such as the popular **Olukelo Joystick Gimbal**. This eliminates unstable manual wiring and provides a robust, plug-and-play mechanical installation.
+* Flight simulator joysticks
+* Throttle quadrants
+* Rudder pedals
+* Collective controls
+* Robotics projects
 
-The board drops all redundant pins to focus entirely on delivering a clean, low-impedance 4-wire SPI pathway, making it ideal for flight simulator axes, throttle quadrants, direct-drive wheels, and precision robotics.
-
----
-
-## 💎 Key Features
-
-- **Native MT6826S Support:** Optimized footprint for the core 15-bit contactless magnetic encoder.
-- **Ultra-Compact Footprint:** Engineered to be embedded directly inside tight 3D-printed mechanical enclosures.
-- **High-Integrity SPI Layout:** Shielded digital traces with tightly coupled ground references to preserve 1MHz+ clock signals.
-- **Olukelo Gimbal Ready:** Physical geometry optimized to replace traditional potentiometers without mechanical friction or physical wear.
-- **Vibration-Resistant Interconnects:** Clean, standardized pin header layout designed for secure wiring inside moving mechanical assemblies.
+The design focuses on compact size, clean SPI routing, and straightforward integration into custom mechanical assemblies.
 
 ---
 
-## 🚀 Revision 1.1 Evolution
+## Features
 
-### Key Hardware Changes (V1.0 ➔ V1.1):
-* **PWM Circuit Eradication:** The legacy analog PWM output pin was completely removed from the connector matrix.
-* **Streamlined Routing & Layout:** Truncating the PWM trace allowed for an aggressive simplification of the PCB routing, resulting in an even smaller footprint and enhanced noise shielding for the remaining digital lines.
-* **Optimized Manufacturing Outputs:** Completely rebuilt schematic and PCB trace matrix to match production-grade assembly standards.
-
-### Why the PWM Pin Was Removed:
-The OpenHOTAS platform and modern high-performance controllers rely exclusively on the MT6826S high-speed digital SPI interface to achieve absolute 15-bit resolution (`0..32767`) and deterministic sub-500µs loops. Removing the unused analog PWM subsystem stripped away unnecessary circuit complexity, cut down trace capacitance, and minimized the physical connector footprint without affecting digital operations.
-
----
-
-## 📦 Repository Structure & Manufacturing Files
-
-This repository contains full, production-ready industrial manufacturing packages. The outputs are generated to allow automated Turnkey PCB production:
-
-* **Schematics & PCB Layout:** Native design files detailing the component layout and electrical constraints.
-* **Production-Grade Gerbers:** High-precision Gerber files (RS-274X/X2) with optimized solder mask and silkscreen layers, ready for instant fabrication (JLCPCB, PCBWay, etc.).
-* **Turnkey Assembly Files:** Includes fully mapped **Bill of Materials (BOM)** with precise manufacturer part numbers and exact **Pick and Place (CPL/Centroid)** coordinate files, enabling full automated SMT surface-mount assembly by manufacturing services.
-* **Mechanical Data:** 3D Step models (when available) to assist in CAD alignment inside 3D printed joystick grips and gimbal bases.
+* MT6826S magnetic encoder support
+* Compact form factor
+* SPI communication interface
+* Optimized for custom HOTAS hardware
+* Suitable for 3D-printed gimbal assemblies
+* Simple connector layout for easy wiring
 
 ---
 
-## 🤝 Open Source & Contributions
+## Applications
 
-This board is an open-source hardware project designed to support the DIY flight simulation and robotics community. If you are adapting this board to alternative mechanical gimbals or custom layouts, feedback regarding mechanical tolerances and electrical performance is highly encouraged!
+This board can be used for:
 
-**Author:** Scaranello  
-**Part of the Ecosystem:** [OpenHOTAS Project]
+* Pitch axis sensing
+* Roll axis sensing
+* Twist / rudder sensing
+* Throttle position sensing
+* General-purpose rotary position measurement
+
+---
+
+## Repository Contents
+
+```text
+board.png           PCB render
+schematic.pdf       Electrical schematic
+MT6826S.pdf         Datasheet reference
+BOM.*               Bill of Materials
+CPL.*               Pick and Place files
+gerbers/            Manufacturing files
+```
+
+---
+
+## Manufacturing
+
+This repository includes all files required for PCB fabrication and assembly, including:
+
+* Schematic
+* PCB layout
+* Gerber files
+* Bill of Materials (BOM)
+* Pick and Place (CPL) data
+
+---
+
+## OpenHOTAS
+
+This board is developed as part of the OpenHOTAS project and is intended to provide a reliable sensor platform for RP2350-based flight simulation controls.
+
+Contributions, testing feedback, and mechanical adaptations are welcome.
