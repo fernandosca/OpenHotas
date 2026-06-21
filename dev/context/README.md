@@ -44,7 +44,10 @@ dev/
 │   └── 05_coding_guidelines.md      ← clean code para agentes (Akita guidelines)
 │
 ├── plan/                            ← features pendentes de implementação
-│   └── roadmap.md                   ← plano consolidado de features futuras
+│   ├── 1_21 cdc serial.md           ← CDC Serial via USB
+│   ├── 1_21 usb flash seguro.md     ← USB flashing seguro
+│   ├── v1_21_versioning.md          ← versionamento SemVer + BCD USB
+│   └── v2_roadmap.md                ← visão de futuro (não é plano detalhado)
 │
 └── logs/                            ← registro imutável de versões entregues
     ├── v1_0_build.md                ← build inicial

@@ -1,2 +1,1 @@
-pub mod runtime;
-pub mod stored_config_v2;
+pub mod settings;
