@@ -5,6 +5,15 @@
 target/
 
 # =========================
+# Tauri / Frontend
+# =========================
+node_modules/
+dist/
+storybook-static/
+.storybook-home/
+gui/src-tauri/target/
+
+# =========================
 # Logs locais
 # =========================
 *.log
@@ -20,3 +29,13 @@ target/
 # =========================
 .DS_Store
 Thumbs.db
+
+# =========================
+# AI session files
+# =========================
+.mimocode/
+
+# =========================
+# Imported experiments
+# =========================
+builder_gui-main/

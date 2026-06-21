@@ -35,8 +35,9 @@ jobs:
 
       - name: Install elf2uf2-rs
         run: cargo install elf2uf2-rs
+
       - name: Copy ELF
-        run: cp firmware/target/thumbv8m.main-none-eabihf/release/openhotas openhotas.elf
+        run: cp target/thumbv8m.main-none-eabihf/release/openhotas openhotas.elf
 
       - name: Generate UF2
         run: elf2uf2-rs openhotas.elf openhotas.uf2
@@ -47,3 +48,30 @@ jobs:
           files: |
             openhotas.elf
             openhotas.uf2
+
+  cli-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: cli
+
+      - name: Build CLI
+        working-directory: cli
+        run: cargo build --release
+
+      - name: Copy binary
+        run: cp target/release/openhotas-cli openhotas-cli-linux-amd64
+
+      - name: Upload CLI to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: openhotas-cli-linux-amd64

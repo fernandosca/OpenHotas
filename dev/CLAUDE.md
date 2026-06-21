@@ -3,7 +3,7 @@
 # OpenHOTAS Firmware Development Rules
 
 **Projeto:** OpenHOTAS
-**Versão:** V1.21
+**Versão:** V1.23
 **MCU:** RP2350
 **Framework:** Embassy 0.10
 **Ambiente:** Rust `no_std` / `no_heap`
@@ -230,10 +230,11 @@ Preservar rigorosamente:
 
 ```text
 cal
+→ center_offset
+→ travel
 → maxjump
 → ema
 → deadzone
-→ expo
 → response
 ```
 
@@ -431,50 +432,11 @@ Explicar o **PORQUÊ** mais do que o **O QUE**.
 
 # 14. Stubs V2
 
-## Não remover
-
-## Não ativar
-
-### firmware/src/calibration/data.rs
-
-```rust
-start()
-feed()
-finish()
-```
-
-### firmware/src/calibration/cal_store.rs
-
-```rust
-save()
-```
-
-### firmware/src/config/settings.rs
-
-```rust
-save()
-active_profile
-```
-
-### firmware/src/filters/*.rs
-
-```rust
-set_alpha()
-set_threshold()
-set_factor()
-```
-
-### firmware/src/axis/pipeline.rs
-
-```rust
-update_config()
-```
+## Não remover · Não ativar
 
 ### firmware/src/usb/descriptor.rs
 
-```rust
-REPORT_ID_CONFIG = 0x02
-```
+`REPORT_ID_CONFIG = 0x02` — segundo report HID para configuração V2.
 
 ---
 

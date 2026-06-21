@@ -2,6 +2,7 @@
 
 > Regras operacionais do firmware. Complementa `dev/context/01_architecture.md`.
 > Qualquer desvio é classificado como **BUG DE ARQUITETURA**.
+> Última atualização: V1.3.0 (Jun/2026)
 
 ---
 
@@ -28,12 +29,13 @@ MT6826S → u16 → [Calibração] → f32 → [Filtros] → f32 → [axis_to_i1
 Cada amostra de eixo percorre `AxisPipeline::process()` nesta ordem **exata e imutável**:
 
 ```
-1. Calibração     (calibration/data.rs)
-2. MaxJump        (filters/max_jump.rs)
-3. EMA            (filters/ema.rs)
-4. Deadzone       (filters/deadzone.rs)
-5. Expo           (filters/expo.rs)
-6. ResponseCurve  (filters/response_curve.rs)   ← pass-through V1.x
+1. Calibração      (calibration/data.rs)
+2. Center Offset   (axis/pipeline.rs)      ← V1.3: ajuste fino do zero
+3. Travel Limits   (axis/pipeline.rs)      ← V1.22: corrige curso físico
+4. MaxJump         (filters/max_jump.rs)
+5. EMA             (filters/ema.rs)
+6. Deadzone        (filters/deadzone.rs)
+7. ResponseCurve   (filters/response_curve.rs)  ← piecewise linear
 ```
 
 ### Justificativa da Ordem
@@ -41,13 +43,36 @@ Cada amostra de eixo percorre `AxisPipeline::process()` nesta ordem **exata e im
 | Posição | Filtro | Por quê nesta posição |
 |---|---|---|
 | 1 | Calibração | Converte u16 → f32. Tudo mais opera em f32. |
-| 2 | MaxJump | **Antes** do EMA — spike rejeitado não contamina o histórico do filtro |
-| 3 | EMA | Suavização sobre sinal já validado |
-| 4 | Deadzone | **Depois** do EMA — zona morta incide sobre sinal estável |
-| 5 | Expo | Curva de resposta sobre saída já processada |
-| 6 | ResponseCurve | Pass-through V1.x — posição reservada para V2 |
+| 2 | Center Offset | Ajusta zero **após** calibração, **antes** de qualquer processamento |
+| 3 | Travel Limits | **Após** center offset, **antes** dos filtros — corrige curso físico |
+| 4 | MaxJump | **Antes** do EMA — spike rejeitado não contamina o histórico do filtro |
+| 5 | EMA | Suavização sobre sinal já validado |
+| 6 | Deadzone | **Depois** do EMA — zona morta incide sobre sinal estável |
+| 7 | ResponseCurve | Curva piecewise linear com 5 pontos de controle |
 
 > ⚠️ Não reordenar. A justificativa de cada posição é funcional, não arbitrária.
+
+### Travel Limits Simétrico
+
+`AxisTravelLimits` usa um único campo público:
+
+```rust
+pub travel_limit_pct: u8 // Range válido: 1..=100
+```
+
+Após a calibração, o centro mecânico é `0.0`. O limite de curso é simétrico:
+o mesmo percentual vale para o lado negativo e para o lado positivo.
+
+Exemplo:
+
+```text
+travel_limit_pct = 95
+input normalizado ±0.95 → saída HID ±100%
+```
+
+Não usar janela `input_min_pct/input_max_pct` do curso total. Esse modelo foi
+substituído porque joystick centralizado deve ter curso equivalente para ambos
+os lados a partir do centro.
 
 ### Regra Especial — Eixo Twist
 
@@ -122,6 +147,15 @@ max:    MT6826_ANGLE_MAX,    // 32767
 - `raw > center`  → range = `max - center`, resultado ∈ `[0.0, 1.0]`
 - Se range == 0.0 → retorna 0.0 (proteção contra divisão por zero)
 
+### Captura via CDC
+
+`CaptureCalibrationPoint` só pode aceitar uma amostra se o eixo estiver saudável.
+Se o bit correspondente em `SENSOR_UNHEALTHY` estiver ativo, o firmware retorna
+`ProtocolError::CalibrationError` e não grava o ponto.
+
+Essa regra impede persistir o fallback de centro (`MT6826_ANGLE_CENTER`) como
+se fosse uma leitura física válida durante falhas de CRC ou magneto.
+
 ---
 
 ## 4. Falhas de Sensor — Comportamento
@@ -142,6 +176,15 @@ let out_x = pl_x.process(rx.unwrap_or(MT6826_ANGLE_CENTER), rx.is_some());
 - Contadores de erro são incrementados em `runtime_stats`
 - O frame HID é enviado normalmente — o host vê o eixo travado no centro
 
+### Falhas do Expansor de Botões
+
+Falha de init ou leitura dos MCP23S17 **não trava o boot nem o HID**.
+
+- O firmware continua operando os eixos
+- Botões são reportados como soltos (`0xFFFF_FFFF` antes da inversão)
+- `BUTTON_ERRORS` é incrementado
+- `BUTTONS_DEGRADED` fica ativo para `GetErrorCounters`
+
 ---
 
 ## 5. Comunicação entre Tasks
@@ -150,8 +193,9 @@ Tasks se comunicam **exclusivamente** via primitivas Embassy:
 
 | Mecanismo | Tipo | Uso |
 |---|---|---|
-| `REPORT_SIGNAL` | `Signal<CriticalSectionRawMutex, GamepadReport>` | `input_task` → `hid_task` |
-| `AtomicU32` | `runtime_stats` globais | `input_task` → `diagnostic_task` |
+| `REPORT_SIGNAL` | `Signal<CriticalSectionRawMutex, GamepadReport>` (latest-wins, non-blocking) | `input_task` → `hid_task` |
+| `CONFIG_SIGNAL` | `Channel<CriticalSectionRawMutex, RuntimeConfig, 1>` | `cdc_task` → `input_task` (latest-wins V1.23) |
+| `AtomicU32` | `runtime_stats` globais | `input_task` → `cdc_task` / `diagnostic_task` |
 
 ```rust
 // Declaração global em hid_gamepad.rs
@@ -171,7 +215,7 @@ let report = REPORT_SIGNAL.wait().await;
 
 ## 6. HID Report — Formato
 
-10 bytes por report. Report ID = `0x01`.
+10 bytes por report. Sem Report ID (removido na V1.22 — único report HID).
 
 | Bytes | Conteúdo | Tipo |
 |---|---|---|
@@ -191,19 +235,24 @@ pub fn axis_to_i16(v: f32) -> i16 {
 
 ## 7. Flash — Regras de Uso
 
-### Layout de Memória
+### Layout de Memória (V1.23)
 
 ```
 Offset físico          Conteúdo
 ─────────────────────────────────────────────
 0x00000000             [ código + dados ]
       ...
-0x001FE000             CALIB_OFFSET (penúltimo setor, 4KB)
-                       [ MAGIC_CAL(4) | centers/mins/maxs(18) | CRC32(4) ]
-0x001FF000             CONFIG_OFFSET (último setor, 4KB)
-                       [ MAGIC_DEVICE(4) | version(1) | profile(1) | axes(72) | CRC32(4) ]
+0x001FE000             [ livre — setor de 4KB recuperado do V1 CALIB_OFFSET ]
+0x001FF000             STORED_V2_OFFSET (último setor, 4KB)
+                       [ MAGIC "OCFG"(4) | storage_version(1) | proto_major(1) |
+                         proto_minor(1) | payload_len(2) |
+                         postcard(DeviceConfig) | CRC32(4) ]
 0x00200000             FLASH_SIZE = 2MB
 ```
+
+> V1.23 removeu `CALIB_OFFSET` e `CONFIG_OFFSET` legados. A única fonte de
+> persistência é `STORED_V2_OFFSET`, que armazena o `DeviceConfig` completo
+> (incluindo calibração, filtros, botões) serializado via postcard + CRC32.
 
 > ⚠️ Offsets são **físicos** (relativos ao início da flash, base `0x00`).
 > **Nunca** usar endereços XIP absolutos (`0x10000000`) nas funções de escrita.
@@ -218,9 +267,9 @@ Offset físico          Conteúdo
 3. **Alinhamento de setor:** O offset de erase/write deve ser múltiplo de `SECTOR_SIZE` (4096).
 
 ```rust
-// Sequência obrigatória para salvar dados:
-flash::erase_sector(CONFIG_OFFSET)?;   // 1. Apagar
-flash::write_flash(CONFIG_OFFSET, &buf)?; // 2. Escrever
+// Sequência obrigatória para salvar dados (StoredConfigV2):
+flash::erase_sector(STORED_V2_OFFSET)?;   // 1. Apagar
+flash::write_flash(STORED_V2_OFFSET, &buf)?; // 2. Escrever
 ```
 
 ### Validação de Leitura — Dupla Checagem
@@ -228,14 +277,17 @@ flash::write_flash(CONFIG_OFFSET, &buf)?; // 2. Escrever
 Dados lidos da flash são **sempre** validados antes de usar:
 
 ```rust
-// 1. Magic number correto?
-if magic != MAGIC_DEVICE { return Self::default(); }
+// 1. Magic number correto? ("OCFG")
+if magic != MAGIC_V2 { return DeviceConfig::default(); }
 
-// 2. Versão compatível?
-if version != CONFIG_VERSION { return Self::default(); }
+// 2. Storage version compatível?
+if storage_version != STORAGE_VERSION { return DeviceConfig::default(); }
 
-// 3. CRC32 bate?
-if stored_crc != computed_crc { return Self::default(); }
+// 3. Protocol major compatível?
+if proto_major != PROTOCOL_VERSION_MAJOR { return DeviceConfig::default(); }
+
+// 4. CRC32 bate?
+if stored_crc != computed_crc { return DeviceConfig::default(); }
 ```
 
 Se qualquer verificação falhar → usar `Default::default()`. Nunca usar dados corrompidos.
@@ -254,33 +306,40 @@ static mut CD: [u8; 256] = [0u8; 256]; // config descriptor
 static mut BD: [u8; 256] = [0u8; 256]; // bos descriptor
 static mut CB: [u8; 64]  = [0u8; 64];  // control buf
 static mut HS: Option<embassy_usb::class::hid::State<'static>> = None;
+/// CDC state para protocolo binário (V1.22).
+static mut CDC_STATE: Option<CdcState> = None;
 ```
 
 Estes buffers **nunca** são alocados em stack ou heap.
 
 ---
 
-## 9. DeviceConfig — Estrutura de Persistência
+## 9. StoredConfigV2 — Estrutura de Persistência (V1.23)
 
-```rust
-pub struct DeviceConfig {
-    pub magic:          u32,          // MAGIC_DEVICE = 0x484F5441 ("HOTA")
-    pub version:        u8,           // CONFIG_VERSION = 1
-    pub active_profile: u8,           // reservado — V2
-    pub axes:           [AxisConfig; 3], // índices: AXIS_X=0, AXIS_Y=1, AXIS_TWIST=2
-}
+A persistência usa o crate `openhotas-protocol` para serializar `DeviceConfig`
+via postcard. O layout em flash é:
+
+```text
+Offset  Tamanho  Campo
+────────────────────────────────────
+0       4        MAGIC = "OCFG"
+4       1        STORAGE_VERSION = 2
+5       1        PROTOCOL_MAJOR
+6       1        PROTOCOL_MINOR
+7       2        PAYLOAD_LEN u16 big-endian
+9       N        PAYLOAD = postcard(DeviceConfig)
+9+N     4        CRC32 (cobre bytes 4 até 9+N-1)
 ```
 
-```rust
-pub struct AxisConfig {
-    pub ema_alpha:      f32,   // DEFAULT_EMA_ALPHA = 0.3
-    pub deadzone:       f32,   // DEFAULT_DEADZONE  = 0.02
-    pub max_jump:       f32,   // DEFAULT_MAX_JUMP  = 0.15
-    pub expo:           f32,   // DEFAULT_EXPO      = 0.0
-    pub inverted:       bool,
-    pub reset_ema_on_dz:bool,  // true apenas em axes[2] (Twist)
-}
-```
+`DeviceConfig` inclui calibração, filtros, limites de curso e configuração de
+botões — tudo em um único setor no `STORED_V2_OFFSET`.
+
+### Invariantes
+
+- `SetConfig` **não** grava flash
+- `LoadDefaults` **não** grava flash
+- `SaveConfig` grava flash
+- `FactoryReset` grava flash (defaults) + reboot
 
 ---
 
@@ -301,4 +360,4 @@ pub struct AxisConfig {
 
 ---
 
-*OpenHOTAS · Contratos de Software V1.2 · Jun/2026*
+*OpenHOTAS · Contratos de Software V1.23 · Jun/2026*

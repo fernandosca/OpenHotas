@@ -1,7 +1,7 @@
 # OpenHOTAS — Roadmap V2
 
-> Documento de visão. Não é um plano de implementação detalhado.
-> Cada item aqui vira um arquivo próprio em `plan/` quando chegar a hora.
+> Documento de visão. Apenas features NÃO implementadas.
+> Features implementadas estão documentadas em `dev/logs/`.
 
 ---
 
@@ -12,63 +12,57 @@ V1.0   — Build inicial (compilou)
 V1.1   — Correções MT6826S + tasks/
 V1.2   — Refatoração safe Rust
 V1.21  — CDC Serial debug + versionamento
+V1.23  — StoredConfigV2, calibração via CDC, diagnóstico expandido
+V1.25  — ResponseCurve piecewise linear, correções de bugs, limpeza
+V1.3   — Axis-to-button, Center offset, MCP23S17 burst read
 V2.0   — Features abaixo  ← este documento
 ```
 
 ---
 
-## Features Previstas para V2
+## Features Previstas para V2 (Não Implementadas)
 
-### 1. Calibração em Runtime
+### 1. Múltiplos Perfis
 
-O esqueleto já existe com `#[allow(dead_code)]`. Precisa de:
-
-- `Calibration::start_calibration()` / `feed()` / `finish_calibration()` — já implementados
-- `cal_store::save()` — já implementado
-- Interface de ativação: comando via USB HID (Report ID `0x02`, reservado)
-- Flow: usuário envia comando → firmware inicia captura → usuário move eixo → firmware salva
-
-**Arquivos existentes relevantes:**
-- `calibration/data.rs` — `Calibration` struct com métodos stub
-- `calibration/cal_store.rs` — `save()` com `#[allow(dead_code)]`
-
-### 2. Configurador PC (USB HID Bidirecional)
-
-- Report ID `0x02` já reservado em `descriptor.rs`
-- Nova `config_task` para receber comandos
-- Novo `usb/hid_config.rs` — handler de reports de configuração
-- PC envia: novo `AxisConfig` → firmware salva em flash e aplica em runtime
-- `AxisPipeline::update_config()` já existe com `#[allow(dead_code)]`
-
-### 3. Múltiplos Perfis
-
-- `active_profile: u8` já existe em `DeviceConfig` (sempre 0 na V1.x)
-- `config/profiles.rs` — placeholder previsto
-- Máximo: 4 perfis (limitado pelo espaço de flash disponível)
+- Seleção de perfis de configuração (ex: "Combate", "Simulação", "Cruzeiro")
+- Máximo: 4 perfis (limitado pelo espaço de flash)
 - Seleção: via botão físico ou comando USB
+- Cada perfil armazena: calibração, filtros, limites de curso, botões
 
-### 4. ResponseCurve Customizável
+**Status:** Removido em V1.23. Possível reconsideração em V3 se houver demanda.
 
-- `filters/response_curve.rs` é pass-through na V1.x
-- V2: tabela lookup com pontos configuráveis pelo usuário
-- Interface: enviada pelo configurador PC
+### 2. HID Config Protocol (Report ID 0x02)
 
-### 5. Diagnóstico Expandido
+- Configuração via HID em vez de CDC
+- Report ID `0x02` reservado no descriptor
+- Vantagem: não precisa de porta serial separada
+- Desvantagem: CDC já funciona, complexidade adicional sem benefício claro
 
-O CDC adicionado na V1.21 é a base. Expansões previstas:
+**Status:** CDC utilizado. HID config é alternativa não priorizada.
 
-- Status individual de cada encoder (X, Y, Twist OK/ERR)
-- Versão do firmware no header do output
-- Contadores de erros por tipo (CRC, magneto, SPI)
+### 3. Button Long Press
 
-**Nota:** `SensorStatus` em `diagnostics/sensor_health.rs` já tem a struct,
-mas não está sendo alimentada pela `input_task` na V1.x.
+- Detectar press longo (>500ms) como botão virtual separado
+- Dobra o número de funções disponíveis
+- Complexidade: ⭐⭐
+
+### 4. Button Toggle
+
+- Modo toggle para botões (liga/desliga)
+- Útil para gear, flaps, lights
+- Complexidade: ⭐⭐
+
+### 5. Sensitivity Per Axis
+
+- Multiplicador de sensibilidade por eixo (50-200%)
+- Ajuste fino sem mudar travel limits
+- Complexidade: ⭐
 
 ---
 
-## O que NÃO está no escopo do V2
+## O que NÃO está no escopo
 
-- **Throttle** — projeto independente em outro Pico 2, para sempre fora deste firmware
+- **Throttle** — projeto independente em outro Pico 2
 - Eixos além dos 3 existentes (X, Y, Twist)
 - Bluetooth ou Wi-Fi
 - Display ou LEDs (possível V3)
@@ -76,33 +70,29 @@ mas não está sendo alimentada pela `input_task` na V1.x.
 
 ---
 
-## Stubs Existentes (dead_code intencional)
+## Regras que Continuam Valendo
 
-| Módulo | Item | Para qual feature V2 |
-|---|---|---|
-| `calibration/data.rs` | `Calibration::start/finish/feed` | Calibração em runtime |
-| `calibration/cal_store.rs` | `save()` | Calibração em runtime |
-| `config/settings.rs` | `DeviceConfig::save()` | Configurador PC |
-| `config/settings.rs` | `active_profile` | Múltiplos perfis |
-| `filters/ema.rs` | `set_alpha()` | Configurador PC |
-| `filters/max_jump.rs` | `set_threshold()` | Configurador PC |
-| `filters/deadzone.rs` | `set_threshold()` | Configurador PC |
-| `filters/expo.rs` | `set_factor()` | Configurador PC |
-| `filters/response_curve.rs` | interface completa | ResponseCurve customizável |
-| `axis/pipeline.rs` | `update_config()` | Configurador PC |
-| `usb/descriptor.rs` | `REPORT_ID_CONFIG = 0x02` | Configurador PC |
-| `diagnostics/sensor_health.rs` | `SensorStatus` completo | Diagnóstico expandido |
-
----
-
-## Regras que Continuam Valendo em V2
-
-- `input_task` permanece monolítica — não dividir em V2
+- `input_task` permanece monolítica — não dividir
 - Escopo: apenas joystick — throttle é sempre projeto separado
-- Naming contract — prefixos `MAGIC_`, `CONFIG_`, `CALIB_` obrigatórios
 - Flash: erase antes de write, nunca em ISR
-- Pipeline: ordem absoluta (calibração → MaxJump → EMA → Deadzone → Expo → ResponseCurve)
+- Pipeline: calibração → center_offset → Travel → MaxJump → EMA → Deadzone → ResponseCurve
 
 ---
 
-*OpenHOTAS · Roadmap V2 · Jun/2026*
+## Implementações V1.x (Documentadas em dev/logs/)
+
+| Versão | Feature | Log |
+|--------|---------|-----|
+| V1.23 | Calibração via CDC | `v1_23_build.md` |
+| V1.23 | Configurador PC (CDC) | `v1_23_build.md` |
+| V1.23 | Diagnóstico expandido | `v1.23_build.md` |
+| V1.25 | ResponseCurve piecewise linear | `v1_25_session_log.md` |
+| V1.25 | Correções de bugs (6 itens) | `v1_25_session_log.md` |
+| V1.25 | Limpeza de dead code | `v1_25_session_log.md` |
+| V1.3 | Axis-to-button | `v1_3_axis_to_button.md` |
+| V1.3 | Center offset | `v1_3_center_offset.md` |
+| V1.3 | MCP23S17 burst read | `v1_3_mcp23s_burst_read.md` |
+
+---
+
+*OpenHOTAS · Roadmap V2 · V1.3.0 · Jun/2026*
