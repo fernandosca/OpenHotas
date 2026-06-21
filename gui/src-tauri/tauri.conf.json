@@ -1,0 +1,35 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "HOTAS Configurator",
+  "version": "0.2.0",
+  "identifier": "dev.openhotas.configurator",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "HOTAS Configurator",
+        "width": 600,
+        "height": 750,
+        "minWidth": 600,
+        "minHeight": 750,
+        "maxWidth": 600,
+        "maxHeight": 750,
+        "resizable": false,
+        "maximizable": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": []
+  }
+}

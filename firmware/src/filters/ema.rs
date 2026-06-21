@@ -32,7 +32,6 @@ impl Ema {
         self.initialized = false;
     }
 
-    #[allow(dead_code)]
     pub fn set_alpha(&mut self, a: f32) {
         self.alpha = a.clamp(0.0, 1.0);
     }

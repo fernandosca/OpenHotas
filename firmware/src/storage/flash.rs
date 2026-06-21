@@ -8,9 +8,7 @@ use embassy_sync::blocking_mutex::Mutex;
 pub type OpenHotasFlash = Flash<'static, FLASH, Blocking, { 2 * 1024 * 1024 }>;
 
 #[derive(Debug)]
-#[allow(dead_code)]
 pub enum FlashError {
-    ReadError,
     WriteError,
     EraseError,
     InvalidOffset,
@@ -52,6 +50,14 @@ fn validate_range(offset: u32, len: usize) -> Result<(), FlashError> {
 pub fn read_flash(offset: u32, buf: &mut [u8]) -> Result<(), FlashError> {
     validate_range(offset, buf.len())?;
 
+    // Verify flash is initialized before accessing XIP memory
+    FLASH_INSTANCE.lock(|state| {
+        if state.borrow().is_none() {
+            return Err(FlashError::NotInitialized);
+        }
+        Ok(())
+    })?;
+
     let ptr = (0x10000000u32 + offset) as *const u8;
     for (i, byte) in buf.iter_mut().enumerate() {
         *byte = unsafe { core::ptr::read_volatile(ptr.add(i)) };
@@ -76,6 +82,10 @@ pub fn erase_sector(offset: u32) -> Result<(), FlashError> {
 
 pub fn write_flash(offset: u32, data: &[u8]) -> Result<(), FlashError> {
     validate_range(offset, data.len())?;
+
+    if !offset.is_multiple_of(SECTOR_SIZE) {
+        return Err(FlashError::InvalidOffset);
+    }
 
     with_flash(|flash| {
         flash

@@ -29,12 +29,17 @@ impl Deadzone {
 
         self.in_zone = false;
 
+        // Guard: threshold >= 1.0 would cause division by zero in remap.
+        // Validation caps at 0.2, but this is a defensive safety net.
+        if self.threshold >= 1.0 {
+            return (input, just_entered);
+        }
+
         let sign = if input >= 0.0 { 1.0 } else { -1.0 };
         let val = sign * (fabsf(input) - self.threshold) / (1.0 - self.threshold);
         (val, just_entered)
     }
 
-    #[allow(dead_code)]
     pub fn set_threshold(&mut self, t: f32) {
         self.threshold = t.clamp(0.0, 1.0);
     }

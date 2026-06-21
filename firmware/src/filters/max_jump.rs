@@ -1,4 +1,5 @@
 use crate::constants::tuning::DEFAULT_MAX_JUMP;
+use libm::fabsf;
 
 #[derive(Debug, Clone)]
 pub struct MaxJump {
@@ -10,7 +11,7 @@ pub struct MaxJump {
 impl MaxJump {
     pub fn new(threshold: f32) -> Self {
         Self {
-            threshold: threshold.abs(),
+            threshold: fabsf(threshold),
             last_valid: 0.0,
             initialized: false,
         }
@@ -23,7 +24,7 @@ impl MaxJump {
             return input.clamp(-1.0, 1.0);
         }
 
-        let delta = (input - self.last_valid).abs();
+        let delta = fabsf(input - self.last_valid);
         if delta > self.threshold {
             return self.last_valid;
         }
@@ -32,9 +33,14 @@ impl MaxJump {
         input.clamp(-1.0, 1.0)
     }
 
-    #[allow(dead_code)]
     pub fn set_threshold(&mut self, t: f32) {
-        self.threshold = t.abs();
+        self.threshold = fabsf(t);
+    }
+
+    /// V1.25: reset internal state — forces re-initialization on next apply().
+    /// Called when calibration, travel limits, or enabled status changes.
+    pub fn reset(&mut self) {
+        self.initialized = false;
     }
 }
 
