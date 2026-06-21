@@ -189,11 +189,19 @@ Lendo a partir de 0x12 (GPIOA), retorna GPIOA + GPIOB em uma transação.
 ## Gate de Qualidade
 
 ```
-Build     : PASS
-Clippy    : PASS
-Fmt       : PASS
-TypeScript: PASS
+Firmware clippy (thumbv8m.main-none-eabihf): PASS
+Protocol clippy                         : PASS
+CLI clippy                              : PASS
+GUI build / TypeScript                  : PASS
+Tauri backend check                     : PASS
+Fmt                                     : PASS
 ```
+
+### CI / Release
+
+- CI cobre `protocol`, `firmware`, `cli` e `gui`
+- Release por tag `v*` gera firmware `.elf`/`.uf2`, CLI Linux, CLI Windows
+  e artefatos GUI Windows via Tauri
 
 ---
 

@@ -187,11 +187,10 @@ para multicore (SMP), precisam ser refatorados.
 > Ver `dev/logs/v1_23_build.md`.
 >
 > V1.25: removido `expo.rs` (substituído por `response_curve.rs` piecewise linear).
-> Ver `dev/logs/v1_25_session_log.md`.
+> Ver `dev/logs/v1_25_build.md`.
 >
 > V1.3.0: adicionados axis-to-button, center offset, burst read MCP23S17.
-> Ver `dev/logs/v1_3_axis_to_button.md`, `v1_3_center_offset.md`,
-> `v1_3_mcp23s_burst_read.md`.
+> Ver `dev/logs/v1_3_build.md`.
 
 ---
 

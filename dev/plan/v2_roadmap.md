@@ -85,13 +85,13 @@ V2.0   — Features abaixo  ← este documento
 |--------|---------|-----|
 | V1.23 | Calibração via CDC | `v1_23_build.md` |
 | V1.23 | Configurador PC (CDC) | `v1_23_build.md` |
-| V1.23 | Diagnóstico expandido | `v1.23_build.md` |
-| V1.25 | ResponseCurve piecewise linear | `v1_25_session_log.md` |
-| V1.25 | Correções de bugs (6 itens) | `v1_25_session_log.md` |
-| V1.25 | Limpeza de dead code | `v1_25_session_log.md` |
-| V1.3 | Axis-to-button | `v1_3_axis_to_button.md` |
-| V1.3 | Center offset | `v1_3_center_offset.md` |
-| V1.3 | MCP23S17 burst read | `v1_3_mcp23s_burst_read.md` |
+| V1.23 | Diagnóstico expandido | `v1_23_build.md` |
+| V1.25 | ResponseCurve piecewise linear | `v1_25_build.md` |
+| V1.25 | Correções de bugs (6 itens) | `v1_25_build.md` |
+| V1.25 | Limpeza de dead code | `v1_25_build.md` |
+| V1.3 | Axis-to-button | `v1_3_build.md` |
+| V1.3 | Center offset | `v1_3_build.md` |
+| V1.3 | MCP23S17 burst read | `v1_3_build.md` |
 
 ---
 
