@@ -435,7 +435,7 @@ pub async fn my_task<T: SomeTrait>(arg: T) -> ! { ... }
 
 Antes de criar qualquer nova task, confirmar que todos os tipos dos
 parâmetros são concretos e que `'static` está presente onde necessário.
-As 5 tasks existentes em `src/tasks/` são o modelo de referência.
+As 4 tasks existentes em `src/tasks/` são o modelo de referência.
 
 ---
 
@@ -511,7 +511,7 @@ cargo fmt --check
 - Não acessar SPI fora de `with_spi0` / `with_spi1`
 - Não usar `impl Trait` ou genéricos em `#[embassy_executor::task]`
 - Não "corrigir" os `transmute` em `main.rs` — são intencionais
-- Não alterar a ordem do pipeline (cal→center_offset→travel→maxjump→ema→deadzone→response)
+- Não alterar a ordem do pipeline (cal→maxjump→ema→deadzone→expo→response)
 - Não dividir `input_task` · Não criar 5ª task sem aprovação
 - Não escrever na flash sem apagar o setor antes
 - Não adicionar dependências sem perguntar
@@ -528,6 +528,10 @@ cargo fmt --check
 
 ## Stubs V2 — não ativar, não remover
 
+`calibration/data.rs`: start/feed/finish · `cal_store.rs`: save()
+`config/settings.rs`: save(), active_profile
+`filters/*.rs`: set_alpha(), set_threshold(), set_factor()
+`axis/pipeline.rs`: update_config()
 `usb/descriptor.rs`: REPORT_ID_CONFIG = 0x02
 ```
 

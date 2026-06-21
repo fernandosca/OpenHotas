@@ -8,12 +8,8 @@ use embassy_rp::gpio::Output;
 #[derive(Debug)]
 pub struct Mt6826<'d> {
     cs: Output<'d>,
-    /// Total errors (CRC + magnet) since boot.
     error_count: u32,
-    /// CRC8 errors only (separate from magnet). V1.23.
-    crc_error_count: u32,
-    /// Magnet/voltage errors only. V1.23.
-    magnet_error_count: u32,
+    last_healthy: bool,
 }
 
 impl<'d> Mt6826<'d> {
@@ -21,8 +17,7 @@ impl<'d> Mt6826<'d> {
         Self {
             cs,
             error_count: 0,
-            crc_error_count: 0,
-            magnet_error_count: 0,
+            last_healthy: false,
         }
     }
 
@@ -32,10 +27,9 @@ impl<'d> Mt6826<'d> {
             crc ^= byte;
             for _ in 0..8 {
                 if crc & 0x80 != 0 {
-                    // wrapping_shl: debug builds panic on overflow with plain <<
-                    crc = crc.wrapping_shl(1) ^ MT6826_CRC8_POLY;
+                    crc = (crc << 1) ^ MT6826_CRC8_POLY;
                 } else {
-                    crc = crc.wrapping_shl(1);
+                    crc <<= 1;
                 }
             }
         }
@@ -55,47 +49,36 @@ impl<'d> Sensor for Mt6826<'d> {
             self.cs.set_low();
 
             let mut buf = [0xA0u8, 0x03, 0x00, 0x00, 0x00, 0x00];
-            let transfer_result = spi
-                .blocking_transfer_in_place(&mut buf)
-                .map_err(|_| SensorError::SpiError);
+            spi.blocking_transfer_in_place(&mut buf)
+                .map_err(|_| SensorError::SpiError)?;
 
             self.cs.set_high();
-            transfer_result?;
 
             let crc_expected = Self::compute_crc8(&buf[2..5]);
             if crc_expected != buf[5] {
                 self.error_count = self.error_count.saturating_add(1);
-                self.crc_error_count = self.crc_error_count.saturating_add(1);
+                self.last_healthy = false;
                 return Err(SensorError::CrcError);
             }
 
             if !Self::check_magnet(buf[4]) {
-                self.error_count = self.error_count.saturating_add(1);
-                self.magnet_error_count = self.magnet_error_count.saturating_add(1);
+                self.last_healthy = false;
                 return Err(SensorError::MagnetError);
             }
 
-            let raw: u16 = (buf[2] as u16) << 8 | (buf[3] as u16);
+            let raw: u16 = (buf[2] as u16) << 8 | buf[3] as u16;
             let angle = raw >> MT6826_ANGLE_SHIFT;
 
+            self.last_healthy = true;
             Ok(angle.min(MT6826_ANGLE_MAX))
         })
-        .map_err(|_| SensorError::NotInitialized)?
+    }
+
+    fn is_healthy(&self) -> bool {
+        self.last_healthy
     }
 
     fn error_count(&self) -> u32 {
         self.error_count
-    }
-}
-
-impl<'d> Mt6826<'d> {
-    /// CRC8 errors only (V1.23 — separate from magnet).
-    pub fn crc_error_count(&self) -> u32 {
-        self.crc_error_count
-    }
-
-    /// Magnet/voltage errors only (V1.23).
-    pub fn magnet_error_count(&self) -> u32 {
-        self.magnet_error_count
     }
 }
