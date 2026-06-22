@@ -5,20 +5,20 @@ Esta pasta concentra a documentacao de desenvolvimento do projeto.
 ## Estrutura
 
 - `context/`: arquitetura, contratos, pinagem, hardware e regras de codigo.
-- `docs/`: tutoriais operacionais e guias de uso do projeto.
+- `docs/`: tutoriais pessoais locais. Esta pasta nao entra no Git.
 - `logs/`: historico de builds, decisoes e mudancas por versao.
-- `plan/`: roadmap ativo e planos tecnicos ainda nao implementados.
-- `plan/backlog/`: ideias futuras que ainda precisam de validacao antes de entrar no roadmap ativo.
+- `roadmap/`: planos solidos e versionados para implementacao.
+- `planos_rascunho/`: ideias e planos em validacao. Esta pasta nao entra no Git.
 
-## Guias principais
+## Arquivos principais
 
-- `docs/dev_environment_setup.md`: preparar ambiente WSL, Rust embedded, flash e debug.
-- `docs/git_workflow.md`: fluxo recomendado de branch de teste, Pull Request, merge e release.
-- `plan/roadmap.md`: plano atual consolidado.
+- `roadmap/roadmap.md`: plano atual consolidado.
+- `roadmap/firmware_update_usb_boot.md`: plano firme para update via USB boot.
 
 ## Regra simples
 
-- O que explica como trabalhar vai em `docs/`.
-- O que descreve futuro do produto vai em `plan/`.
+- Tutorial pessoal vai em `docs/` e fica local.
+- Plano firme vai em `roadmap/` e entra no Git.
+- Plano ainda em duvida vai em `planos_rascunho/` e fica local.
 - O que ja aconteceu vai em `logs/`.
 - O que define contrato/arquitetura vai em `context/`.
