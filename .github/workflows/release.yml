@@ -115,9 +115,9 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
           cache-dependency-path: gui/package-lock.json
 
