@@ -1,486 +1,280 @@
-# Firmware Update via USB Boot (reset_to_usb_boot)
+# Firmware Update Manual via USB Boot
 
-> Plano de implementação. Substitui a abordagem dual-bank do documento anterior.
-
----
-
-## Por Que Esta Abordagem
-
-O RP2350 contém na sua **ROM interna** uma função chamada `reset_to_usb_boot()`. Ela é gravada de fábrica pela Raspberry Pi Foundation e **nunca pode ser apagada ou corrompida** — está na ROM mask, não na flash.
-
-Quando chamada, ela:
-1. Desliga o firmware em execução
-2. Inicializa o USB no modo Mass Storage
-3. O dispositivo aparece no PC como um pen drive chamado `RPI-RP2`
-4. Qualquer arquivo `.uf2` copiado para esse drive é gravado na flash automaticamente
-5. Ao terminar, o RP2350 reinicia no novo firmware
-
-**Risco de brick: zero.** Se a transferência falhar no meio, o bootloader da ROM ainda está intacto. O dispositivo sempre volta ao modo UF2 no próximo boot se o firmware estiver corrompido.
+> Plano firme para implementar update seguro usando o bootloader ROM do RP2350.
 
 ---
 
-## Comparativo com o Plano Anterior
+## Objetivo
 
-| Critério | Plano Anterior (dual-bank) | Esta Abordagem |
-|---|---|---|
-| Linhas de firmware | ~300 | ~15 |
-| Linhas na GUI | ~200 | ~40 |
-| Risco de brick | Alto (cópia B→A) | Zero (ROM) |
-| Flash consumida | ~256KB (área B) | 0 bytes extras |
-| Complexidade | Muito alta | Baixa |
-| Rollback automático | Frágil | Implícito (ROM sempre presente) |
-| Velocidade de update | ~16 segundos | ~3–5 segundos (USB MSC) |
-| Manutenção futura | Alta | Nenhuma |
+Permitir que a GUI coloque o Pico 2 em modo bootloader USB e copie um arquivo
+`.uf2` escolhido manualmente pelo usuario.
+
+Esta fase nao inclui verificacao automatica no GitHub, download automatico ou
+comparacao com releases remotas. Essas ideias ficam em rascunho separado.
 
 ---
 
-## Arquitetura Completa
+## Decisao
 
-```
-┌─────────────────────────────────────────────────────┐
-│  GitHub Releases                                    │
-│                                                     │
-│  tag: v1.2.0  →  openhotas_v1.2.0.uf2              │
-└─────────────────────────────────────────────────────┘
-         ↓ HTTPS (GitHub API)
-┌─────────────────────────────────────────────────────┐
-│  GUI Tauri                                          │
-│                                                     │
-│  Compara versão do firmware com latest release      │
-│  Se nova: oferece update → baixa .uf2               │
-│  Envia comando: REBOOT_TO_BOOTLOADER                │
-└─────────────────────────────────────────────────────┘
-         ↓ USB CDC Serial (protocolo postcard/CRC16)
-┌─────────────────────────────────────────────────────┐
-│  Firmware (usb_task)                                │
-│                                                     │
-│  Recebe REBOOT_TO_BOOTLOADER                        │
-│  Aguarda 100ms (flush USB)                          │
-│  rom_data::reset_to_usb_boot(0, 0)                 │
-└─────────────────────────────────────────────────────┘
-         ↓ USB desconecta e reconecta como MSC
-┌─────────────────────────────────────────────────────┐
-│  ROM Bootloader (imutável, gravado de fábrica)      │
-│                                                     │
-│  Dispositivo aparece como "RPI-RP2" (pen drive)     │
-│  GUI detecta o drive, copia o .uf2                  │
-│  RP2350 grava e reinicia automaticamente            │
-└─────────────────────────────────────────────────────┘
-```
+Usar `reset_to_usb_boot(0, 0)` da ROM interna do RP2350.
+
+Motivos:
+
+- bootloader fica em ROM mask, nao na flash
+- nao consome espaco de flash
+- nao exige dual-bank
+- nao exige copia manual entre regioes de flash
+- reduz risco de brick
+- usa fluxo UF2 padrao do Pico
 
 ---
 
-## Flash Layout (sem alterações)
+## Fluxo Esperado
 
-Nenhuma mudança no layout atual. A abordagem usa 100% da flash para o firmware.
-
-```
-0x10000000  XIP base (RP2350)
-     +0x000000  Firmware principal (todo o espaço disponível)
-     +0x1C0000  Config (DeviceConfig)     4KB  ← inalterado
-     +0x1C1000  Calibration              4KB  ← inalterado
-     +0x1C2000  Macros (futuro)          4KB  ← inalterado
-```
-
----
-
-## Versionamento via Cargo.toml
-
-O `Cargo.toml` é a **única fonte de verdade** para a versão do firmware. Nenhum outro arquivo precisa ser atualizado.
-
-```toml
-# Cargo.toml
-[package]
-name    = "openhotas"
-version = "1.2.0"   # ← única linha a editar para bump de versão
-```
-
-O firmware expõe a versão em tempo de compilação via `env!()` — custo de runtime zero:
-
-```rust
-// constants.rs
-
-/// Versão lida do Cargo.toml em compile time — nunca desincroniza
-pub const VERSION_MAJOR: u8 = env!("CARGO_PKG_VERSION_MAJOR").parse::<u8>().unwrap();
-pub const VERSION_MINOR: u8 = env!("CARGO_PKG_VERSION_MINOR").parse::<u8>().unwrap();
-pub const VERSION_PATCH: u8 = env!("CARGO_PKG_VERSION_PATCH").parse::<u8>().unwrap();
-```
-
-### DeviceInfo no protocolo
-
-O firmware inclui a versão na resposta `GetDeviceInfo`, que a GUI já solicita na conexão:
-
-```rust
-// config/protocol.rs
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct DeviceInfo {
-    pub firmware_version: [u8; 3],   // [major, minor, patch]
-    pub hardware_revision: u8,
-    // ... outros campos existentes
-}
-
-impl DeviceInfo {
-    pub fn current() -> Self {
-        Self {
-            firmware_version: [VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH],
-            hardware_revision: 1,
-        }
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub enum HostCommand {
-    GetDeviceInfo,            // ← responde com DeviceInfo
-    GetConfig,
-    SetConfig(DeviceConfig),
-    GetCalibration,
-    SetCalibration(CalibrationData),
-    RebootToBootloader,       // ← NOVO: único comando novo
-}
-```
-
----
-
-## Implementação: Firmware
-
-### Dependências
-
-Sem dependências novas. `embassy-rp` já expõe `rom_data`.
-
-```toml
-# Já presente:
-embassy-rp = { version = "0.10.0", features = ["rp235xa"] }
-```
-
-### Handler no USB task
-
-```rust
-// usb/hid_config.rs
-
-use embassy_rp::rom_data;
-
-async fn handle_command(cmd: HostCommand) -> Option<FirmwareResponse> {
-    match cmd {
-        HostCommand::GetDeviceInfo => {
-            Some(FirmwareResponse::DeviceInfo(DeviceInfo::current()))
-        }
-
-        HostCommand::RebootToBootloader => {
-            // Delay para a resposta USB ser enviada antes do reboot
-            Timer::after_millis(100).await;
-            rom_data::reset_to_usb_boot(0, 0);
-            // Nunca chega aqui
-            None
-        }
-
-        // ... handlers existentes
-    }
-}
-```
-
-**Parâmetros de `reset_to_usb_boot(gpio_activity_pin_mask, disable_interface_mask)`:**
-- `0, 0` — sem LED de atividade, sem interfaces desabilitadas. Correto para o OpenHOTAS.
-
-### Arquivos modificados
-
-| Arquivo | Ação | Linhas |
-|---|---|---|
-| `constants.rs` | Adicionar `VERSION_*` via `env!()` | +3 |
-| `config/protocol.rs` | Adicionar `DeviceInfo`, `GetDeviceInfo`, `RebootToBootloader` | +12 |
-| `usb/hid_config.rs` | Adicionar handlers | +8 |
-
-**Total firmware: ~23 linhas.**
-
----
-
-## Implementação: GUI Tauri
-
-### GitHub API — verificação de versão
-
-A GitHub API pública não requer autenticação para repositórios públicos. Limite de 60 req/hora por IP — mais que suficiente.
-
-```rust
-// src-tauri/src/github.rs
-
-use serde::Deserialize;
-
-#[derive(Deserialize)]
-struct GitHubRelease {
-    tag_name: String,           // ex: "v1.2.0"
-    assets: Vec<GitHubAsset>,
-}
-
-#[derive(Deserialize)]
-struct GitHubAsset {
-    name: String,               // ex: "openhotas_v1.2.0.uf2"
-    browser_download_url: String,
-}
-
-/// Retorna (versão_latest, url_do_uf2) se houver versão nova
-pub async fn check_for_update(current: [u8; 3]) -> Result<Option<(String, String)>, String> {
-    let url = "https://api.github.com/repos/seu-user/openhotas/releases/latest";
-
-    let client = reqwest::Client::new();
-    let release: GitHubRelease = client
-        .get(url)
-        .header("User-Agent", "openhotas-configurator")
-        .send().await
-        .map_err(|e| e.to_string())?
-        .json().await
-        .map_err(|e| e.to_string())?;
-
-    // Parse "v1.2.0" → [1, 2, 0]
-    let latest = parse_version(&release.tag_name)?;
-
-    if latest > current {
-        // Encontra o asset .uf2
-        let asset = release.assets.iter()
-            .find(|a| a.name.ends_with(".uf2"))
-            .ok_or("Release sem arquivo .uf2")?;
-
-        Ok(Some((release.tag_name, asset.browser_download_url.clone())))
-    } else {
-        Ok(None)  // Já está na versão mais recente
-    }
-}
-
-fn parse_version(tag: &str) -> Result<[u8; 3], String> {
-    let v = tag.trim_start_matches('v');
-    let parts: Vec<u8> = v.split('.')
-        .map(|p| p.parse::<u8>().map_err(|e| e.to_string()))
-        .collect::<Result<_, _>>()?;
-    Ok([parts[0], parts[1], parts[2]])
-}
-```
-
-### Download do .uf2
-
-```rust
-// src-tauri/src/github.rs (continuação)
-
-use std::path::PathBuf;
-use tokio::io::AsyncWriteExt;
-
-pub async fn download_uf2(url: &str, dest: &PathBuf) -> Result<(), String> {
-    let client = reqwest::Client::new();
-    let bytes = client
-        .get(url)
-        .header("User-Agent", "openhotas-configurator")
-        .send().await
-        .map_err(|e| e.to_string())?
-        .bytes().await
-        .map_err(|e| e.to_string())?;
-
-    let mut file = tokio::fs::File::create(dest).await
-        .map_err(|e| e.to_string())?;
-    file.write_all(&bytes).await
-        .map_err(|e| e.to_string())?;
-
-    Ok(())
-}
-```
-
-### Detecção do drive UF2
-
-```rust
-// src-tauri/src/firmware_update.rs
-
-use std::path::PathBuf;
-
-/// Procura pelo drive RPI-RP2 em todas as plataformas
-fn find_rpi_drive() -> Option<PathBuf> {
-    #[cfg(target_os = "windows")]
-    {
-        for letter in b'D'..=b'Z' {
-            let path = PathBuf::from(format!("{}:\\", letter as char));
-            if path.join("INFO_UF2.TXT").exists() {
-                return Some(path);
-            }
-        }
-        None
-    }
-    #[cfg(target_os = "macos")]
-    {
-        let path = PathBuf::from("/Volumes/RPI-RP2");
-        path.exists().then_some(path)
-    }
-    #[cfg(target_os = "linux")]
-    {
-        // Tenta /mnt/RPI-RP2 e /media/<user>/RPI-RP2
-        if PathBuf::from("/mnt/RPI-RP2").exists() {
-            return Some(PathBuf::from("/mnt/RPI-RP2"));
-        }
-        // Glob em /media/ para qualquer usuário
-        if let Ok(entries) = std::fs::read_dir("/media") {
-            for entry in entries.flatten() {
-                let candidate = entry.path().join("RPI-RP2");
-                if candidate.exists() { return Some(candidate); }
-            }
-        }
-        None
-    }
-}
-
-pub async fn perform_update(uf2_path: PathBuf) -> Result<(), String> {
-    // 1. Enviar comando de reboot ao firmware
-    send_reboot_command().await?;
-
-    // 2. Aguardar drive aparecer (timeout 10s)
-    let drive = tokio::time::timeout(
-        std::time::Duration::from_secs(10),
-        async {
-            loop {
-                if let Some(d) = find_rpi_drive() { return d; }
-                tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-            }
-        }
-    ).await.map_err(|_| "Timeout: drive RPI-RP2 não encontrado")?;
-
-    // 3. Copiar .uf2 para o drive
-    let dest = drive.join(uf2_path.file_name().unwrap());
-    std::fs::copy(&uf2_path, &dest)
-        .map_err(|e| format!("Falha ao copiar firmware: {e}"))?;
-
-    // O RP2350 reinicia automaticamente após receber o .uf2
-    Ok(())
-}
-```
-
-### Fluxo completo na GUI
-
-```
-Conexão estabelecida
-       ↓
-GUI envia GetDeviceInfo → recebe firmware_version: [1, 1, 0]
-       ↓
-GUI consulta GitHub API → latest: v1.2.0
-       ↓
-Se versão nova: badge "Atualização disponível" na UI
-       ↓
-Usuário clica "Atualizar para v1.2.0"
-       ↓
-GUI baixa openhotas_v1.2.0.uf2 para temp dir
-       ↓
-GUI exibe: "Reiniciando em modo de atualização..."
-       ↓
-GUI envia RebootToBootloader
-       ↓
+```text
+Usuario seleciona arquivo .uf2 na GUI
+        ↓
+GUI envia comando RebootToBootloader via CDC
+        ↓
+Firmware responde Ack
+        ↓
+Firmware aguarda ~100 ms
+        ↓
 Firmware chama reset_to_usb_boot(0, 0)
-       ↓
-GUI detecta drive RPI-RP2 (polling 200ms)
-       ↓
-GUI copia .uf2 para o drive
-       ↓
-RP2350 grava e reinicia (drive desaparece)
-       ↓
-GUI aguarda porta serial reaparecer
-       ↓
-"Firmware v1.2.0 instalado com sucesso!"
-```
-
-### Arquivos criados/modificados na GUI
-
-| Arquivo | Ação | Linhas |
-|---|---|---|
-| `src-tauri/src/github.rs` | Criar — API check + download | ~80 |
-| `src-tauri/src/firmware_update.rs` | Criar — detect drive + copy | ~60 |
-| `src-tauri/src/main.rs` | Expor comandos Tauri | ~10 |
-| `src/components/FirmwareUpdate.tsx` | UI — badge + modal + progresso | ~100 |
-
-**Total GUI: ~250 linhas.**
-
----
-
-## Workflow de Release
-
-O processo completo de publicar uma nova versão:
-
-```bash
-# 1. Bump de versão (única edição necessária)
-# Cargo.toml: version = "1.2.0"
-
-# 2. Build do firmware
-cargo build --release
-
-# 3. Converter ELF → UF2
-elf2uf2-rs target/thumbv8m.main-none-eabihf/release/openhotas openhotas_v1.2.0.uf2
-
-# 4. Criar release no GitHub com o .uf2 como asset
-gh release create v1.2.0 openhotas_v1.2.0.uf2 --title "v1.2.0" --notes "..."
-
-# → GUIs de todos os usuários detectam a nova versão automaticamente
+        ↓
+Dispositivo reconecta como drive RPI-RP2
+        ↓
+GUI detecta o drive
+        ↓
+GUI copia o .uf2 selecionado
+        ↓
+ROM grava firmware e reinicia automaticamente
 ```
 
 ---
 
-## Custo Total
+## Estado Atual do Projeto
 
-| Recurso | Consumo |
-|---|---|
-| Flash código | 0 bytes (ROM call) |
-| Flash dados | 0 bytes (sem área B) |
-| RAM | 0 bytes extras |
-| Linhas firmware | ~23 |
-| Linhas GUI | ~250 |
-| Infraestrutura | Zero (GitHub gratuito) |
-| Risco de brick | Zero |
+Parte da base ja existe:
+
+- `Request::GetInfo` ja substitui o antigo conceito de `GetDeviceInfo`
+- `Response::Info(DeviceInfo)` ja retorna versao de firmware e protocolo
+- `FIRMWARE_VERSION` ja vem de `env!("CARGO_PKG_VERSION")`
+- GUI Tauri ja envia comandos CDC por `gui/src-tauri/src/commands.rs`
+- `Request::Reboot` ja existe, mas faz reboot normal da aplicacao
+
+O comando novo deve ser separado de `Request::Reboot`.
 
 ---
 
-## Considerações de Segurança
+## Mudancas de Protocolo
 
-**`reset_to_usb_boot()` não tem proteção por senha.** Qualquer software que consiga enviar o comando pode acionar o reboot. Para o OpenHOTAS isso é aceitável — dispositivo pessoal, sem vetor de ataque real.
+Arquivo:
 
-Se no futuro isso for uma preocupação, a mitigação é simples: exigir que o usuário segure um botão físico no HOTAS enquanto o comando é enviado:
+```text
+crates/openhotas-protocol/src/request.rs
+```
+
+Adicionar:
 
 ```rust
-HostCommand::RebootToBootloader => {
-    // Só executa se botão de segurança estiver pressionado
-    if BUTTON_STATES.load(Ordering::Relaxed) & SAFETY_BUTTON_MASK != 0 {
-        Timer::after_millis(100).await;
-        rom_data::reset_to_usb_boot(0, 0);
-    }
+/// Reboot into RP2350 ROM USB bootloader (RPI-RP2 UF2 drive).
+RebootToBootloader,
+```
+
+Observacoes:
+
+- manter `Request::Reboot` como reboot normal
+- `RebootToBootloader` deve retornar `Response::Ack` antes do reset
+- atualizar `PROTOCOL_VERSION_MINOR` ou `PROTOCOL_VERSION_MAJOR`, conforme a
+  politica adotada para novo comando no protocolo
+
+---
+
+## Mudancas no Firmware
+
+Arquivos principais:
+
+```text
+firmware/src/tasks/cdc.rs
+firmware/src/tasks/cdc_handlers.rs
+```
+
+Implementacao recomendada:
+
+- adicionar estado `pending_bootloader: bool` ao lado de `pending_reboot`
+- tratar `Request::RebootToBootloader` no handler de escrita
+- responder `Ack`
+- apos enviar o frame de resposta, aguardar ~100 ms
+- chamar `embassy_rp::rom_data::reset_to_usb_boot(0, 0)`
+
+Exemplo conceitual:
+
+```rust
+Request::RebootToBootloader => {
+    *pending_bootloader = true;
+    Response::Ack
 }
 ```
 
----
+No loop CDC, apos enviar a resposta:
 
-## Plano de Fases
+```rust
+if pending_bootloader {
+    Timer::after_millis(100).await;
+    embassy_rp::rom_data::reset_to_usb_boot(0, 0);
+}
+```
 
-### Fase 1 — Firmware (~1h)
-- Adicionar `VERSION_*` em `constants.rs`
-- Adicionar `DeviceInfo` e `GetDeviceInfo` ao protocolo
-- Adicionar `RebootToBootloader` e handler no usb task
-- Testar manualmente: enviar comando → drive aparece → copiar .uf2
+Parametros:
 
-### Fase 2 — GUI básica (~3h)
-- `GetDeviceInfo` na conexão → exibir versão no rodapé da GUI
-- Botão "Atualizar Firmware" com seleção manual de arquivo .uf2
-- Detecção do drive e cópia automática
-- Feedback de estado (connecting → rebooting → copying → done)
-
-### Fase 3 — GitHub Releases (~2h)
-- Verificação automática de versão via GitHub API na inicialização
-- Badge "Atualização disponível" na UI
-- Download automático do .uf2 com progresso
-- Workflow de release documentado
-
----
-
-## Teste Manual (sem GUI)
-
-Para validar o firmware antes da GUI estar pronta, qualquer ferramenta que consiga enviar o comando serializado pelo protocolo postcard/CRC16:
-
-```bash
-# Após o firmware entrar em modo bootloader:
-cp openhotas.uf2 /Volumes/RPI-RP2/   # macOS
-cp openhotas.uf2 /mnt/RPI-RP2/       # Linux
-copy openhotas.uf2 E:\               # Windows
-
-# O RP2350 grava e reinicia sozinho em ~3 segundos
+```text
+gpio_activity_pin_mask = 0
+disable_interface_mask = 0
 ```
 
 ---
 
-*OpenHOTAS · Plan · Jun/2026*
+## Mudancas na CLI
+
+Adicionar comando simples para teste antes da GUI:
+
+```text
+openhotas-cli --port <porta> bootloader
+```
+
+Objetivo:
+
+- validar firmware sem depender da GUI
+- confirmar que o drive `RPI-RP2` aparece
+- permitir teste manual copiando `.uf2`
+
+---
+
+## Mudancas na GUI
+
+Arquivos provaveis:
+
+```text
+gui/src-tauri/src/commands.rs
+gui/src-tauri/src/main.rs
+gui/src/lib/tauri.ts
+gui/src/components/settings/SettingsPage.tsx
+```
+
+Comportamento esperado:
+
+- botao em Configuracoes para atualizar firmware manualmente
+- seletor de arquivo `.uf2`
+- confirmacao antes de reiniciar em bootloader
+- envio de `Request::RebootToBootloader`
+- deteccao do drive `RPI-RP2`
+- copia do `.uf2` para o drive
+- feedback de estado para o usuario
+
+Estados minimos:
+
+```text
+idle
+file_selected
+rebooting_to_bootloader
+waiting_for_rpi_drive
+copying_uf2
+done
+error
+```
+
+---
+
+## Deteccao do Drive RPI-RP2
+
+Prioridade inicial: Windows.
+
+No Windows, procurar unidades `D:\` ate `Z:\` que contenham:
+
+```text
+INFO_UF2.TXT
+```
+
+Suporte posterior pode adicionar:
+
+```text
+macOS: /Volumes/RPI-RP2
+Linux: /media/<usuario>/RPI-RP2 ou /mnt/RPI-RP2
+```
+
+Timeout inicial recomendado:
+
+```text
+10 segundos
+```
+
+Intervalo de polling:
+
+```text
+200 ms
+```
+
+---
+
+## Fora do Escopo Desta Fase
+
+- consultar GitHub Releases
+- baixar `.uf2` automaticamente
+- comparar versao local com ultima release
+- mostrar badge de update disponivel
+- assinatura/verificacao criptografica do arquivo
+- rollback automatico
+- dual-bank
+
+---
+
+## Riscos e Mitigacoes
+
+| Risco | Mitigacao |
+|---|---|
+| Usuario seleciona arquivo errado | Confirmar nome e extensao `.uf2` antes de copiar |
+| Drive RPI-RP2 demora a aparecer | Timeout claro e botao para tentar novamente |
+| Porta serial desaparece no reboot | Fechar conexao antes de aguardar o drive |
+| Copia falha | Mostrar erro e orientar copiar manualmente |
+| Comando acidental | Confirmacao antes de reiniciar em bootloader |
+
+---
+
+## Plano de Implementacao
+
+### Fase 1 - Firmware e CLI
+
+- adicionar `Request::RebootToBootloader`
+- implementar handler no firmware
+- adicionar comando CLI `bootloader`
+- teste manual: comando CLI faz aparecer `RPI-RP2`
+
+### Fase 2 - GUI Manual
+
+- selecionar `.uf2`
+- enviar comando de bootloader
+- detectar drive
+- copiar arquivo
+- mostrar estado final
+
+### Fase 3 - Validacao
+
+- testar no Windows
+- testar falha por timeout
+- testar arquivo invalido
+- testar reconexao apos update
+
+---
+
+## Criterio de Pronto
+
+- CLI consegue colocar o dispositivo em modo `RPI-RP2`
+- GUI consegue copiar um `.uf2` selecionado manualmente
+- falhas comuns exibem erro claro
+- `Request::Reboot` normal continua funcionando
+- CI passa para protocolo, firmware, CLI e GUI
+
+---
+
+*OpenHOTAS - Roadmap - Firmware Update Manual via USB Boot*
