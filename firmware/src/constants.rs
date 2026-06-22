@@ -13,6 +13,25 @@
 //!   - Eixos, Flash, USB HID: estruturais, estaveis
 //!   - `pub mod tuning`: valores ajustaveis em campo — separados por design
 
+// ── Pin Assignments (GPIO) — Referência Documental ─────────────────────
+// Embassy usa type-level pins (p.PIN_X), então estas constantes são
+// apenas para referência. Os valores reais estão em main.rs.
+
+// SPI0 — MCP23S17 (botões)
+pub const PIN_SPI0_SCK: u8 = 6;
+pub const PIN_SPI0_MOSI: u8 = 7;
+pub const PIN_SPI0_MISO: u8 = 4;
+pub const PIN_CS_MCP23S: u8 = 5;
+pub const PIN_INT_MCP23S: u8 = 8; // Wired-OR INT de U1+U2 (não implementado, apenas referência)
+
+// SPI1 — MT6826S (eixos)
+pub const PIN_SPI1_SCK: u8 = 14;
+pub const PIN_SPI1_MOSI: u8 = 15;
+pub const PIN_SPI1_MISO: u8 = 12;
+pub const PIN_CS_ENCODER_X: u8 = 10;
+pub const PIN_CS_ENCODER_Y: u8 = 13;
+pub const PIN_CS_ENCODER_TWIST: u8 = 16;
+
 // ── Hardware: MT6826S (SPI1) ─────────────────────────────────────────────
 // VALIDADAS no firmware V1.1 (Datasheet Rev.1.1) — nao alterar sem re-testar
 
@@ -65,27 +84,19 @@ pub const AXIS_TWIST: usize = 2;
 //   usar o offset diretamente
 //
 // Para leitura via memory-mapped XIP (ponteiro), use:
-//   let ptr = (0x10000000u32 + CALIB_OFFSET) as *const u8;
+//   let ptr = (0x10000000u32 + offset) as *const u8;
 
 pub const FLASH_SIZE: u32 = 2 * 1024 * 1024;
 
 pub const SECTOR_SIZE: u32 = 4096;
 
-pub const CONFIG_OFFSET: u32 = FLASH_SIZE - SECTOR_SIZE;
-
-pub const CALIB_OFFSET: u32 = CONFIG_OFFSET - SECTOR_SIZE;
-
-pub const MAGIC_DEVICE: u32 = 0x484F5441;
-
-pub const MAGIC_CAL: u32 = 0x43414C31;
-
-pub const CONFIG_VERSION: u8 = 1;
+/// V1.23: StoredConfigV2 — fonte oficial de config + calibração.
+/// Último setor da flash (0x001FF000).
+pub const STORED_V2_OFFSET: u32 = FLASH_SIZE - SECTOR_SIZE;
 
 // ── USB HID ──────────────────────────────────────────────────────────────
 
 pub const REPORT_ID_GAMEPAD: u8 = 0x01;
-
-pub const REPORT_ID_CONFIG: u8 = 0x02;
 
 pub const REPORT_SIZE: usize = 10;
 
@@ -103,7 +114,10 @@ pub const MAX_INPUT_CYCLE_US: u32 = 500;
 pub const FIRMWARE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Git hash curto do commit que gerou este binário
-pub const FIRMWARE_GIT_HASH: &str = env!("GIT_HASH");
+pub const FIRMWARE_GIT_HASH: &str = match option_env!("GIT_HASH") {
+    Some(h) => h,
+    None => "unknown",
+};
 
 // ── Tuning Layer ─────────────────────────────────────────────────────────
 //
@@ -118,6 +132,4 @@ pub mod tuning {
     pub const DEFAULT_DEADZONE: f32 = 0.02;
 
     pub const DEFAULT_MAX_JUMP: f32 = 0.15;
-
-    pub const DEFAULT_EXPO: f32 = 0.0;
 }

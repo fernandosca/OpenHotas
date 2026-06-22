@@ -1,0 +1,11 @@
+[package]
+name = "openhotas-cli"
+version = "1.3.0"
+edition = "2021"
+description = "OpenHOTAS PC configuration tool — CLI for V1.23+"
+
+[dependencies]
+openhotas-protocol = { path = "../crates/openhotas-protocol", features = ["std"] }
+postcard = "1"
+serde = { version = "1", features = ["derive"] }
+libc = "0.2"

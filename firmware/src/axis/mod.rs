@@ -2,18 +2,17 @@ pub mod pipeline;
 
 pub use pipeline::AxisPipeline;
 
-use crate::constants::tuning::{
-    DEFAULT_DEADZONE, DEFAULT_EMA_ALPHA, DEFAULT_EXPO, DEFAULT_MAX_JUMP,
-};
+use crate::constants::tuning::{DEFAULT_DEADZONE, DEFAULT_EMA_ALPHA, DEFAULT_MAX_JUMP};
 
 #[derive(Debug, Clone, Copy)]
 pub struct AxisConfig {
     pub ema_alpha: f32,
     pub deadzone: f32,
     pub max_jump: f32,
-    pub expo: f32,
     pub inverted: bool,
     pub reset_ema_on_dz: bool,
+    pub response_p1: (f32, f32),
+    pub response_p3: (f32, f32),
 }
 
 impl Default for AxisConfig {
@@ -22,9 +21,10 @@ impl Default for AxisConfig {
             ema_alpha: DEFAULT_EMA_ALPHA,
             deadzone: DEFAULT_DEADZONE,
             max_jump: DEFAULT_MAX_JUMP,
-            expo: DEFAULT_EXPO,
             inverted: false,
             reset_ema_on_dz: false,
+            response_p1: (-0.5, -0.5),
+            response_p3: (0.5, 0.5),
         }
     }
 }
@@ -32,6 +32,5 @@ impl Default for AxisConfig {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct AxisOutput {
     pub value: f32,
-    #[allow(dead_code)]
     pub healthy: bool,
 }
