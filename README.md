@@ -87,4 +87,4 @@ Contributions, testing, bug reports, hardware improvements, and pull requests ar
 
 ## License
 
-License information will be added in a future release.
+OpenHOTAS is licensed under the MIT License. See [LICENSE](LICENSE).

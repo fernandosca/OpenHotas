@@ -3,6 +3,7 @@ name = "openhotas-cli"
 version = "1.3.0"
 edition = "2021"
 description = "OpenHOTAS PC configuration tool — CLI for V1.23+"
+license = "MIT"
 
 [dependencies]
 openhotas-protocol = { path = "../crates/openhotas-protocol", features = ["std"] }
