@@ -157,10 +157,13 @@ Lendo a partir de 0x12 (GPIOA), retorna GPIOA + GPIOB em uma transação.
 ### Protocol Version
 
 - `PROTOCOL_VERSION_MAJOR`: 2 → 3
+- `openhotas-protocol`: versionado como `1.3.0` para rastrear a build V1.3
 
 ### GUI Tipos
 
 - `gui/src/types/protocol.ts`: `AxisToButtonConfig`, `center_offset_permille`
+- GUI versionada como `1.3.0` em `package.json`, `tauri.conf.json` e
+  `src-tauri/Cargo.toml`
 
 ### GUI Controles
 
@@ -176,6 +179,7 @@ Lendo a partir de 0x12 (GPIOA), retorna GPIOA + GPIOB em uma transação.
 
 - `cli/src/commands.rs`: `--center-offset`, `--axis-to-button`
 - `cli/src/display.rs`: Exibe novos campos
+- CLI versionada como `1.3.0`
 
 ### Contratos Atualizados
 
