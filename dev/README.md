@@ -1,47 +1,24 @@
-# 📚 OpenHOTAS Development Resources
+# OpenHOTAS Development Resources
 
-This directory contains development resources used during the design and implementation of the OpenHOTAS project.
+Esta pasta concentra a documentacao de desenvolvimento do projeto.
 
-The files in this section are intended to support engineering decisions, firmware development, hardware design, and AI-assisted workflows.
+## Estrutura
 
----
+- `context/`: arquitetura, contratos, pinagem, hardware e regras de codigo.
+- `docs/`: tutoriais operacionais e guias de uso do projeto.
+- `logs/`: historico de builds, decisoes e mudancas por versao.
+- `plan/`: roadmap ativo e planos tecnicos ainda nao implementados.
+- `plan/backlog/`: ideias futuras que ainda precisam de validacao antes de entrar no roadmap ativo.
 
-## Contents
+## Guias principais
 
-Examples of resources that may be found here include:
+- `docs/dev_environment_setup.md`: preparar ambiente WSL, Rust embedded, flash e debug.
+- `docs/git_workflow.md`: fluxo recomendado de branch de teste, Pull Request, merge e release.
+- `plan/roadmap.md`: plano atual consolidado.
 
-* Architecture documents
-* Development roadmaps
-* Hardware notes
-* Firmware design references
-* AI context files
-* Coding guidelines
-* Datasheet summaries
-* Build and validation notes
+## Regra simples
 
----
-
-## Purpose
-
-The goal of this directory is to centralize project knowledge and maintain a consistent reference for future development.
-
-These documents may contain design discussions, implementation plans, experimental ideas, and engineering notes that complement the source code and hardware files found elsewhere in the repository.
-
----
-
-## Notes
-
-The contents of this directory are considered supporting documentation and may evolve as the project grows.
-
-For production firmware and hardware files, refer to the corresponding directories:
-
-```text
-firmware/
-hardware/
-```
-
----
-
-## OpenHOTAS
-
-This directory serves as the engineering knowledge base for the OpenHOTAS ecosystem.
+- O que explica como trabalhar vai em `docs/`.
+- O que descreve futuro do produto vai em `plan/`.
+- O que ja aconteceu vai em `logs/`.
+- O que define contrato/arquitetura vai em `context/`.
