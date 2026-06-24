@@ -533,5 +533,5 @@ cargo fmt --check
 
 ---
 
-*OpenHOTAS · Diretrizes de Código V1.2 · Jun/2026*
+*OpenHOTAS · Diretrizes de Código V1.3.0 · Jun/2026*
 *Fontes: Akita, "Clean Code pra Agentes de IA" + "Boas práticas OSS com LLM"*
