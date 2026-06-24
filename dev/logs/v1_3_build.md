@@ -228,6 +228,38 @@ Clippy   : PASS (zero warnings)
 
 ---
 
+## 6. CHIP_ID Fix — OTP Unique ID (Jun/2026)
+
+### Problema
+
+Endereços `0x00010040`/`0x00010044` para leitura de CHIP_ID estavam **incorretos**:
+- Base `0x00010000` não é SYSINFO (`0x40000000`)
+- Leitura funcionava por acaso (lixo da região ROM sem crash)
+- Serial USB poderia ser igual em todas as placas
+
+### Solução
+
+Substituído por `otp::get_chipid()` — lê chip ID de OTP (rows 0x0-0x3), retorna `u64`.
+API segura do embassy-rp, sem raw pointers.
+
+### Mudanças
+
+| Arquivo | Mudança |
+|---------|---------|
+| `firmware/src/main.rs` | `chip_id_serial_static()` usa `otp::get_chipid()` em vez de endereços incorretos |
+| `firmware/src/main.rs` | Removidas constantes `CHIP_ID_HI`/`CHIP_ID_LO` |
+| `firmware/src/main.rs` | Adicionado `use embassy_rp::otp` |
+
+### Gate de Qualidade
+
+```
+Build    : PASS
+Clippy   : PASS (zero warnings)
+FMT      : PASS
+```
+
+---
+
 ## Gate de Qualidade
 
 ```
