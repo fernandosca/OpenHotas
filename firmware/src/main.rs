@@ -112,9 +112,17 @@ async fn main(spawner: Spawner) {
     let mut usb_cfg = UsbConfig::new(0x16c0, 0x27db);
     usb_cfg.manufacturer = Some("OpenHOTAS");
     usb_cfg.product = Some("OpenHOTAS Gamepad");
-    usb_cfg.serial_number = Some("OH0001");
+    // Serial único por placa: UID de 64 bits do RP2350 (CHIP_ID).
+    // Sem isso, todos os sticks reportam o mesmo serial e dois OpenHOTAS no
+    // mesmo host colidem na enumeração USB. O Builder exige lifetime 'static,
+    // então o serial é gravado num static (no_heap) antes de ser emprestado.
+    usb_cfg.serial_number = Some(unsafe { chip_id_serial_static() });
     usb_cfg.max_power = 100;
-    usb_cfg.device_release = 0x0123; // BCD: major=1, minor=23
+    // BCD major.minor derivado do Cargo.toml via build.rs (ex.: 1.3.0 → 0x0130).
+    // Mantém o descritor USB sincronizado com a versão SemVer automaticamente.
+    usb_cfg.device_release = env!("USB_DEVICE_RELEASE_BCD")
+        .parse::<u16>()
+        .unwrap_or(0x0100);
 
     // Transmute: Converter lifetime local de HID State para 'static.
     // Sound: estado USB vive pela execução inteira, never-drop pattern.
@@ -181,4 +189,53 @@ async fn main(spawner: Spawner) {
         .spawn(tasks::input::input_task(sens_x, sens_y, sens_t, mcp23s, pl_x, pl_y, pl_t).unwrap());
     spawner.spawn(tasks::diagnostic::diagnostic_task().unwrap());
     spawner.spawn(tasks::cdc::cdc_task(cdc_sender, cdc_receiver).unwrap());
+}
+
+/// Buffer estático (no_heap) que guarda o serial USB formatado.
+/// O Builder do embassy-usb exige `&'static str` para os descritores, então o
+/// UID lido do CHIP_ID é formatado aqui uma única vez no boot.
+static mut SERIAL_STR: [u8; 18] = [0u8; 18];
+
+/// Formata um byte (0..255) como dois hex ASCII em `dst[0..2]`.
+fn write_hex_byte(dst: &mut [u8], byte: u8) {
+    const HEX: &[u8; 16] = b"0123456789ABCDEF";
+    dst[0] = HEX[(byte >> 4) as usize];
+    dst[1] = HEX[(byte & 0x0F) as usize];
+}
+
+/// Lê o UID de 64 bits do RP2350 (CHIP_ID), formata como serial USB único e
+/// grava no static `SERIAL_STR`, retornando um `&'static str`.
+///
+/// Cada placa tem um UID distinto, então dois sticks OpenHOTAS no mesmo host
+/// não colidem na enumeração USB. Antes disto, todos reportavam "OH0001".
+///
+/// # Safety
+/// - Lê dois words de endereços XIP fixos do datasheet do RP2350 (CHIP_ID):
+///   registradores somente-leitura, memory-mapped, sem efeito colateral.
+/// - Escreve em `SERIAL_STR` no boot, antes do spawn de qualquer task e fora
+///   de ISR — sem concorrência (single-core, single-thread até aqui).
+unsafe fn chip_id_serial_static() -> &'static str {
+    // Endereços CHIP_ID do RP2350 (datasheet RP2350, seção de CHIP_ID).
+    // Dois words de 32 bits formam o UID de 64 bits da chip.
+    const CHIP_ID_HI: u32 = 0x0001_0000 + 0x0040;
+    const CHIP_ID_LO: u32 = 0x0001_0000 + 0x0044;
+    let hi = core::ptr::read_volatile(CHIP_ID_HI as *const u32);
+    let lo = core::ptr::read_volatile(CHIP_ID_LO as *const u32);
+
+    // Formata no buffer local (safe) e copia para o static no final.
+    let mut buf = [0u8; 18];
+    buf[0] = b'O';
+    buf[1] = b'H';
+    let mut i = 2usize;
+    for byte in hi.to_be_bytes().iter().chain(lo.to_be_bytes().iter()) {
+        write_hex_byte(&mut buf[i..i + 2], *byte);
+        i += 2;
+    }
+
+    // Copia para o static e retorna &'static str.
+    // Safety: o static existe, tem tamanho conhecido (18 bytes), estamos no boot
+    // single-core antes de qualquer spawn — sem concorrência possível.
+    let static_ptr = core::ptr::addr_of_mut!(SERIAL_STR);
+    core::ptr::copy_nonoverlapping(buf.as_ptr(), static_ptr as *mut u8, 18);
+    core::str::from_utf8_unchecked(core::slice::from_raw_parts(static_ptr as *const u8, i))
 }

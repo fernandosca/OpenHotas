@@ -173,6 +173,10 @@ pub fn from_protocol_config(
             || pa.response_curve.point_left.x <= -1000
             || pa.response_curve.point_right.x <= 0
             || pa.response_curve.point_right.x >= 1000
+            || pa.response_curve.point_left.y < -1000
+            || pa.response_curve.point_left.y > 1000
+            || pa.response_curve.point_right.y < -1000
+            || pa.response_curve.point_right.y > 1000
             // Axis-to-button validation
             || (pa.axis_to_button.enabled && pa.axis_to_button.button_index > 31)
             || (pa.axis_to_button.enabled && pa.axis_to_button.threshold_permille > 1000)

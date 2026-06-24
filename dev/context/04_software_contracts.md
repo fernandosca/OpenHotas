@@ -314,6 +314,30 @@ Estes buffers **nunca** são alocados em stack ou heap.
 
 ---
 
+## 8.1. Serial USB — Formato do Contrato
+
+O serial number USB é `"OH"` seguido de 16 caracteres hex uppercase
+(`"OH{:016X}"`), totalizando 18 bytes.
+
+| Componente | Tamanho | Conteúdo |
+|---|---|---|
+| Prefixo | 2 bytes | `"OH"` (ASCII fixo) |
+| UID | 16 hex chars | 64-bit CHIP_ID do RP2350 (8 bytes, big-endian, 2 hex por byte) |
+
+Exemplo: `OH0A1B2C3D4E5F6071`
+
+**Fonte:** `CHIP_ID_HI` (0x00010040) + `CHIP_ID_LO` (0x000044) — registradores
+somente-leitura do RP2350.
+
+**Contrato para ferramentas (CLI/GUI):**
+- O serial **não** é usado para discovery — o CLI e GUI identificam o dispositivo
+  via `Request::GetInfo` → `DeviceInfo.protocol_major`.
+- O serial serve apenas para **uniqueness na enumeração USB** — dois OpenHOTAS
+  no mesmo host não colidem.
+- Formato estável: se mudar, é breaking change no USB descriptor.
+
+---
+
 ## 9. StoredConfigV2 — Estrutura de Persistência (V1.23)
 
 A persistência usa o crate `openhotas-protocol` para serializar `DeviceConfig`
@@ -360,4 +384,4 @@ botões — tudo em um único setor no `STORED_V2_OFFSET`.
 
 ---
 
-*OpenHOTAS · Contratos de Software V1.23 · Jun/2026*
+*OpenHOTAS · Contratos de Software V1.3.0 · Jun/2026*

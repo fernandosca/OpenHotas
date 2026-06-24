@@ -50,14 +50,17 @@ async fn send_frame(
     Ok(())
 }
 
-/// Serialize a Response into a CDC frame. Returns frame length (0 on error).
-fn build_frame(response: &Response, buf: &mut [u8]) -> usize {
+/// Serialize a Response into a CDC frame. Returns `Some(len)` on success,
+/// `None` if the serialized payload overflows `MAX_PAYLOAD_SIZE`.
+///
+/// Em overflow, o caller deve responder `Response::Error(InternalError)` em
+/// vez de derrubar a sessão CDC — antes, `build_frame` retornava 0 e a
+/// conexão caía silenciosamente.
+fn build_frame(response: &Response, buf: &mut [u8]) -> Option<usize> {
     let payload_start = 4;
     let payload_buf = &mut buf[payload_start..payload_start + MAX_PAYLOAD_SIZE];
 
-    let Ok(serialized) = postcard::to_slice(response, payload_buf) else {
-        return 0;
-    };
+    let serialized = postcard::to_slice(response, payload_buf).ok()?;
     let payload_len = serialized.len();
 
     buf[0] = SOF_A;
@@ -72,7 +75,26 @@ fn build_frame(response: &Response, buf: &mut [u8]) -> usize {
     buf[crc_offset] = crc_bytes[0];
     buf[crc_offset + 1] = crc_bytes[1];
 
-    crc_offset + 2
+    Some(crc_offset + 2)
+}
+
+/// Constroi e envia um frame. Retorna `false` se a conexão deve ser encerrada
+/// (falha de I/O no USB), `true` para continuar a sessão.
+/// Em overflow de serialização, envia `Response::Error(InternalError)` e mantém
+/// a sessão aberta.
+async fn send_response(
+    response: &Response,
+    buf: &mut [u8],
+    sender: &mut Sender<'static, Driver<'static, USB>>,
+) -> bool {
+    let Some(len) = build_frame(response, buf) else {
+        let err = Response::Error(openhotas_protocol::error::ProtocolError::InternalError);
+        if let Some(len) = build_frame(&err, buf) {
+            return send_frame(sender, &buf[..len]).await.is_ok();
+        }
+        return false;
+    };
+    send_frame(sender, &buf[..len]).await.is_ok()
 }
 
 // ── Request Dispatch ─────────────────────────────────────────────────────
@@ -144,9 +166,7 @@ pub async fn cdc_task(
                                 &mut cal_session,
                                 &mut pending_reboot,
                             );
-                            let len = build_frame(&response, &mut frame_buf);
-                            if len == 0 || send_frame(&mut sender, &frame_buf[..len]).await.is_err()
-                            {
+                            if !send_response(&response, &mut frame_buf, &mut sender).await {
                                 break 'connection;
                             }
                             if pending_reboot {
@@ -159,8 +179,7 @@ pub async fn cdc_task(
                             let response = Response::Error(
                                 openhotas_protocol::error::ProtocolError::InvalidPayload,
                             );
-                            let len = build_frame(&response, &mut frame_buf);
-                            if send_frame(&mut sender, &frame_buf[..len]).await.is_err() {
+                            if !send_response(&response, &mut frame_buf, &mut sender).await {
                                 break 'connection;
                             }
                         }

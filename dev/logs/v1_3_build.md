@@ -190,6 +190,44 @@ Lendo a partir de 0x12 (GPIOA), retorna GPIOA + GPIOB em uma transação.
 
 ---
 
+## 5. Code Quality — Session Improvements (Jun/2026)
+
+### SERIAL_STR Refactor
+
+O padrão de inicialização do serial USB foi simplificado:
+
+| Antes | Depois |
+|-------|--------|
+| Raw pointer writes byte-a-byte | Buffer local + `copy_nonoverlapping` |
+| `unsafe` aninhado (3 blocos) | 1 único `unsafe` block |
+| `addr_of_mut!` + `ptr.write()` | Formatação safe no buffer local |
+
+O loop de formatação agora usa operações safe com slice indexing no buffer
+local, e apenas `copy_nonoverlapping` + `from_raw_parts` ficam no `unsafe`.
+
+### Serial USB Contract (§8.1)
+
+Adicionado em `dev/context/04_software_contracts.md`:
+- Formato: `"OH{:016X}"` (18 bytes)
+- Fonte: CHIP_ID registers do RP2350
+- Contrato para ferramentas: serial é uniqueness, não discovery
+
+### Doc Version Alignment
+
+Rodapés atualizados para V1.3.0:
+- `04_software_contracts.md`: V1.23 → V1.3.0
+- `05_coding_guidelines.md`: V1.2 → V1.3.0
+
+### Gate de Qualidade (pós-melhorias)
+
+```
+FMT      : PASS
+Build    : PASS
+Clippy   : PASS (zero warnings)
+```
+
+---
+
 ## Gate de Qualidade
 
 ```

@@ -50,20 +50,25 @@ fn validate_range(offset: u32, len: usize) -> Result<(), FlashError> {
 pub fn read_flash(offset: u32, buf: &mut [u8]) -> Result<(), FlashError> {
     validate_range(offset, buf.len())?;
 
-    // Verify flash is initialized before accessing XIP memory
+    // Leitura XIP mantida DENTRO do lock.
+    //
+    // No RP2350, qualquer acesso XIP durante um `blocking_erase`/`blocking_write`
+    // congela o barramento. Segurar o lock aqui garante que a leitura não
+    // concorra com uma escrita/erase — corrigindo o TOCTOU da versão anterior,
+    // onde a verificação `is_none()` liberava o mutex antes da leitura XIP.
+    // Hoje só é usado no boot, mas assim a API fica correta sob uso concorrente.
     FLASH_INSTANCE.lock(|state| {
         if state.borrow().is_none() {
             return Err(FlashError::NotInitialized);
         }
+
+        let ptr = (0x10000000u32 + offset) as *const u8;
+        for (i, byte) in buf.iter_mut().enumerate() {
+            // Safety: XIP memory-mapped read-only access a offset validado.
+            *byte = unsafe { core::ptr::read_volatile(ptr.add(i)) };
+        }
         Ok(())
-    })?;
-
-    let ptr = (0x10000000u32 + offset) as *const u8;
-    for (i, byte) in buf.iter_mut().enumerate() {
-        *byte = unsafe { core::ptr::read_volatile(ptr.add(i)) };
-    }
-
-    Ok(())
+    })
 }
 
 pub fn erase_sector(offset: u32) -> Result<(), FlashError> {
