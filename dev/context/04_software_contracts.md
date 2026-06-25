@@ -322,12 +322,21 @@ O serial number USB é `"OH"` seguido de 16 caracteres hex uppercase
 | Componente | Tamanho | Conteúdo |
 |---|---|---|
 | Prefixo | 2 bytes | `"OH"` (ASCII fixo) |
-| UID | 16 hex chars | 64-bit CHIP_ID do RP2350 (8 bytes, big-endian, 2 hex por byte) |
+| UID | 16 hex chars | 64-bit chip ID do RP2350 (8 bytes, big-endian, 2 hex por byte) |
 
 Exemplo: `OH0A1B2C3D4E5F6071`
 
-**Fonte:** `CHIP_ID_HI` (0x00010040) + `CHIP_ID_LO` (0x000044) — registradores
-somente-leitura do RP2350.
+**Fonte:** chip ID de OTP, lido via `embassy_rp::otp::get_chipid()` (rows
+0x0–0x3). Cada RP2350 tem um chip ID único gravado em fábrica.
+
+> ⚠️ Não usar os endereços SYSINFO (`0x00010040`/`0x00010044`) — base
+> incorreta; a leitura "funcionava" por acaso (lixo da ROM sem crash). A fonte
+> oficial é OTP.
+
+**Fallback de degradação:**
+Se a OTP estiver ilegível (falha teórica), o firmware usa o serial fixo
+`OH0000000000000000` e emite um `defmt::warn!`. O boot não trava, mas todos os
+sticks nessa condição compartilham o mesmo serial.
 
 **Contrato para ferramentas (CLI/GUI):**
 - O serial **não** é usado para discovery — o CLI e GUI identificam o dispositivo
@@ -335,6 +344,8 @@ somente-leitura do RP2350.
 - O serial serve apenas para **uniqueness na enumeração USB** — dois OpenHOTAS
   no mesmo host não colidem.
 - Formato estável: se mudar, é breaking change no USB descriptor.
+- O serial `OH0000000000000000` indica OTP ilegível — o configurador deve
+  alertar o usuário ao encontrá-lo.
 
 ---
 

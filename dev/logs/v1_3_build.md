@@ -260,6 +260,50 @@ FMT      : PASS
 
 ---
 
+## 7. Análise de Ajustes (Jun/2026)
+
+### A. expect() em chip_id_serial_static()
+
+**Status:** Já implementado (sem alteração necessária).
+
+O código em `main.rs:225` já usa `unwrap_or_else` com fallback:
+```rust
+let chip_id = otp::get_chipid().unwrap_or_else(|_| {
+    defmt::warn!("OTP chip ID unavailable, using fallback serial");
+    0u64
+});
+```
+
+Em caso de falha OTP, o serial vira `OH0000000000000000` e o boot continua
+funcional. Alinhado com o estilo defensivo do projeto (MCP → buttons released,
+sensor → centro).
+
+### B. Contrato do serial — 04_software_contracts.md §8.1
+
+**Status:** Já documentado (sem alteração necessária).
+
+A §8.1 (linhas 329-334) já menciona OTP como fonte oficial:
+> **Fonte:** chip ID de OTP, lido via `embassy_rp::otp::get_chipid()` (rows 0x0–0x3).
+
+E inclui warning contra SYSINFO:
+> ⚠️ Não usar os endereços SYSINFO — base incorreta.
+
+O log §5 (linhas 211-212) mencionava "CHIP_ID registers" — linguagem
+ambígua, mas o contrato §8.1 já está preciso. Não há inconsistência residual.
+
+### C. bcd_encode(major) << 8 | bcd_encode(minor) — build.rs
+
+**Status:** Já protegido (sem alteração necessária).
+
+O `assert!(minor < 10, ...)` em `build.rs:52` já impede minor ≥ 10.
+O comentário em build.rs:36-37 documenta a regra:
+> minor deve ser 0–9 (cada incremento = 0.10 no BCD). Ao atingir minor 9,
+> bumpar major e resetar minor para 0.
+
+Limite implícito: major ≤ 99 (BCD de 2 nibbles). Para SemVer, é um não-problema.
+
+---
+
 ## Gate de Qualidade
 
 ```

@@ -32,7 +32,11 @@ fn main() {
     println!("cargo:rustc-env=GIT_HASH={}", git_hash);
 
     // ── USB device_release (BCD) derivado do Cargo.toml ─────────────────
-    // Formato BCD USB: 0xMMNN = major.minor (1.3.0 → 0x0130).
+    // bcdDevice segue a convenção MM.NN onde minor ocupa as dezenas do byte
+    // baixo. Consequência: minor deve ser 0–9 (cada incremento = 0.10 no BCD).
+    // Ao atingir minor 9, bumpar major e resetar minor para 0.
+    // Ex: 1.0 → 0x0100, 1.3 → 0x0130, 1.9 → 0x0190, 2.0 → 0x0200
+    //
     // Mantém o descritor USB sincronizado com a versão SemVer do crate,
     // evitando o defasamento manual que deixou device_release preso em 1.23
     // entre V1.25 e V1.3.0. O campo patch é ignorado (USB usa só major.minor).
@@ -44,15 +48,19 @@ fn main() {
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(0);
-    // Cada nibble é um dígito decimal; major/minor cabem cada um em 1 byte BCD.
-    let bcd = bcd_encode(major) << 8 | bcd_encode(minor);
+    assert!(
+        minor < 10,
+        "minor deve ser 0–9. Versão {major}.{minor} inválida — bumpe o major."
+    );
+    let bcd = bcd_encode(major) << 8 | bcd_encode(minor * 10);
     println!("cargo:rustc-env=USB_DEVICE_RELEASE_BCD=0x{:04X}", bcd);
 }
 
-/// Codifica um valor decimal (0..=99) em BCD (1 nibble alto = dezena, 1 nibble baixo = unidade).
-/// Ex.: 30 → 0x30, 3 → 0x03.
+/// Codifica um valor decimal (0..=99) em BCD de 1 byte
+/// (nibble alto = dezena, nibble baixo = unidade).
+/// Ex.: 30 → 0x30, 3 → 0x03, 99 → 0x99.
 fn bcd_encode(v: u8) -> u16 {
-    let tens = (v / 10).min(9) as u16;
+    let tens = (v / 10) as u16;
     let units = (v % 10) as u16;
     (tens << 4) | units
 }
