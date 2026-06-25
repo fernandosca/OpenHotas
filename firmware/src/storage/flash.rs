@@ -99,17 +99,4 @@ pub fn write_flash(offset: u32, data: &[u8]) -> Result<(), FlashError> {
     })
 }
 
-pub fn crc32(data: &[u8]) -> u32 {
-    let mut crc: u32 = 0xFFFF_FFFF;
-    for &byte in data {
-        crc ^= byte as u32;
-        for _ in 0..8 {
-            if crc & 1 != 0 {
-                crc = (crc >> 1) ^ 0xEDB8_8320;
-            } else {
-                crc >>= 1;
-            }
-        }
-    }
-    crc ^ 0xFFFF_FFFF
-}
+pub use openhotas_filters::crc32;

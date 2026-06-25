@@ -1,4 +1,4 @@
-use crate::constants::tuning::DEFAULT_DEADZONE;
+use crate::tuning::DEFAULT_DEADZONE;
 use libm::fabsf;
 
 #[derive(Debug)]
@@ -29,8 +29,6 @@ impl Deadzone {
 
         self.in_zone = false;
 
-        // Guard: threshold >= 1.0 would cause division by zero in remap.
-        // Validation caps at 0.2, but this is a defensive safety net.
         if self.threshold >= 1.0 {
             return (input, just_entered);
         }
@@ -48,5 +46,46 @@ impl Deadzone {
 impl Default for Deadzone {
     fn default() -> Self {
         Self::new(DEFAULT_DEADZONE)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn below_threshold_zeroed() {
+        let mut dz = Deadzone::new(0.1);
+        let (out, _) = dz.apply(0.05);
+        assert_eq!(out, 0.0);
+    }
+
+    #[test]
+    fn above_threshold_remapped() {
+        let mut dz = Deadzone::new(0.1);
+        let (out, _) = dz.apply(0.55);
+        assert!((out - 0.5).abs() < 0.001);
+    }
+
+    #[test]
+    fn just_entered_flag() {
+        let mut dz = Deadzone::new(0.1);
+        dz.apply(0.5);
+        let (_, entered) = dz.apply(0.05);
+        assert!(entered);
+    }
+
+    #[test]
+    fn negative_side_mirrors() {
+        let mut dz = Deadzone::new(0.1);
+        let (out, _) = dz.apply(-0.55);
+        assert!((out - (-0.5)).abs() < 0.001);
+    }
+
+    #[test]
+    fn zero_threshold_passthrough() {
+        let mut dz = Deadzone::new(0.0);
+        let (out, _) = dz.apply(0.75);
+        assert!((out - 0.75).abs() < 0.001);
     }
 }
