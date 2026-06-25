@@ -1,4 +1,4 @@
-use crate::constants::tuning::DEFAULT_MAX_JUMP;
+use crate::tuning::DEFAULT_MAX_JUMP;
 use libm::fabsf;
 
 #[derive(Debug, Clone)]
@@ -38,7 +38,6 @@ impl MaxJump {
     }
 
     /// V1.25: reset internal state — forces re-initialization on next apply().
-    /// Called when calibration, travel limits, or enabled status changes.
     pub fn reset(&mut self) {
         self.initialized = false;
     }
@@ -47,5 +46,37 @@ impl MaxJump {
 impl Default for MaxJump {
     fn default() -> Self {
         Self::new(DEFAULT_MAX_JUMP)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn first_input_accepted() {
+        let mut mj = MaxJump::new(0.1);
+        assert_eq!(mj.apply(0.5), 0.5);
+    }
+
+    #[test]
+    fn within_threshold_accepted() {
+        let mut mj = MaxJump::new(0.1);
+        mj.apply(0.5);
+        assert_eq!(mj.apply(0.55), 0.55);
+    }
+
+    #[test]
+    fn spike_rejected_holds_last() {
+        let mut mj = MaxJump::new(0.1);
+        mj.apply(0.5);
+        assert_eq!(mj.apply(0.9), 0.5);
+    }
+
+    #[test]
+    fn negative_spike_rejected() {
+        let mut mj = MaxJump::new(0.1);
+        mj.apply(0.5);
+        assert_eq!(mj.apply(0.1), 0.5);
     }
 }

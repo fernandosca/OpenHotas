@@ -34,5 +34,6 @@ cortex-m-rt = "0.7"
 critical-section = "1.1"
 libm = "0.2"
 openhotas-protocol = { path = "../crates/openhotas-protocol" }
+openhotas-filters = { path = "../crates/openhotas-filters" }
 postcard = { workspace = true }
 serde = { workspace = true }

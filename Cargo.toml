@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "firmware",
     "crates/openhotas-protocol",
+    "crates/openhotas-filters",
     "cli",
     "gui/src-tauri",
 ]

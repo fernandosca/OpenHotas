@@ -324,3 +324,81 @@ Fmt                                     : PASS
 ---
 
 *OpenHOTAS · V1.3.0 Build Log · Jun/2026*
+
+## 8. Crate `openhotas-filters` — Extração de Lógica Pura (Jun/2026)
+
+### Motivo
+
+O firmware é `[[bin]]` com `test = false`. Extrair lógica pura (filtros, calibração,
+crc32) para um crate library separado permite testes unitários no host sem
+dependências de HAL/embassy.
+
+### Novo Crate
+
+```
+crates/openhotas-filters/
+├── Cargo.toml          # deps: libm
+└── src/
+    ├── lib.rs          # #![no_std] + re-exports
+    ├── tuning.rs       # 3 constantes de default
+    ├── ema.rs          # Filtro EMA (6 testes)
+    ├── deadzone.rs     # Zona morta (5 testes)
+    ├── max_jump.rs     # Rejeição de spikes (4 testes)
+    ├── response_curve.rs # Curva piecewise (4 testes)
+    ├── calibration.rs  # CalibrationData + Calibration (6 testes)
+    └── crc32.rs        # CRC-32 ISO-HDLC (4 testes)
+```
+
+### Dependências
+
+| Dep | Tipo | Necessidade |
+|-----|------|-------------|
+| `libm` | Runtime | `fabsf()` em deadzone e max_jump |
+| `embassy-*` | — | **Não usado** |
+| `cortex-m` | — | **Não usado** |
+| `openhotas-protocol` | — | **Não usado** |
+
+### O que migrou
+
+| De | Para | Observação |
+|----|------|------------|
+| `firmware/src/filters/ema.rs` | `crates/.../src/ema.rs` | Import: `crate::tuning::*` |
+| `firmware/src/filters/deadzone.rs` | `crates/.../src/deadzone.rs` | Import: `crate::tuning::*` |
+| `firmware/src/filters/max_jump.rs` | `crates/.../src/max_jump.rs` | Import: `crate::tuning::*` |
+| `firmware/src/filters/response_curve.rs` | `crates/.../src/response_curve.rs` | Sem imports |
+| `firmware/src/calibration/data.rs` | `crates/.../src/calibration.rs` | Struct + `Default` + `apply()` |
+| `firmware/src/storage/flash.rs` (crc32) | `crates/.../src/crc32.rs` | Função standalone |
+
+### Re-exports no Firmware
+
+- `firmware/src/filters/mod.rs` → re-exporta tipos do novo crate
+- `firmware/src/calibration/mod.rs` → re-exporta `CalibrationData`, `Calibration`
+- `firmware/src/storage/flash.rs` → re-exporta `crc32`
+
+Nenhuma mudança de import necessária nos consumidores (`pipeline.rs`, `config/runtime.rs`,
+`main.rs`).
+
+### Testes — 29 total
+
+| Módulo | Testes | Destaques |
+|--------|--------|-----------|
+| EMA | 6 | convergência, alpha zero/um, reset |
+| Deadzone | 5 | remap, flag just_entered, zero threshold |
+| MaxJump | 4 | spike positivo e negativo |
+| ResponseCurve | 4 | linear, clamp, interpolação, set_points |
+| Calibration | 6 | center, min, max, degenerate, assimétrico |
+| CRC32 | 4 | vetor ISO-HDLC, byte único, consistência |
+
+### Gate de Qualidade
+
+```
+openhotas-filters tests  : PASS (29/29)
+openhotas-filters clippy : PASS (zero warnings)
+Firmware build           : PASS
+Firmware clippy (cross)  : PASS (zero warnings)
+Fmt                      : PASS
+cargo tree (host)        : libm only — zero embedded deps
+```
+
+---
+
