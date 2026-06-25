@@ -513,10 +513,13 @@ elf2uf2-rs target/.../release/openhotas out.uf2   # gerar UF2
 
 ```sh
 cargo test -p openhotas-filters && \
+cargo tree -p openhotas-filters --target x86_64-unknown-linux-gnu && \
+cargo fmt --check && \
 cargo clippy -p openhotas-filters -- -D warnings && \
+cargo clippy -p openhotas-protocol -- -D warnings && \
 cargo build --release && \
 cargo clippy --target thumbv8m.main-none-eabihf -- -D warnings && \
-cargo fmt --check
+cd firmware && cargo fmt --check
 ```
 
 ## no_std — substituições obrigatórias
