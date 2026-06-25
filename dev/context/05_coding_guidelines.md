@@ -200,18 +200,36 @@ Executar ao flashar em hardware novo ou após mudança em driver/pipeline:
 [ ] Ciclo dentro de 500µs (diagnostic_task a cada 5s)
 ```
 
-### O que o agente deve fazer em vez de rodar testes
+### Gate de qualidade antes de flashar
 
-Antes de flashar, o agente valida via compilador:
+O agente executa **todos** estes passos antes de flashar. Falha em qualquer
+um = não avançar.
 
 ```sh
-cargo build --release   # sem erros
-cargo clippy --target thumbv8m.main-none-eabihf   # zero warnings
-cargo fmt --check       # sem diff de formatação
+# 1. Testes de lógica pura — rápido, host, falha cedo
+cargo test -p openhotas-filters
+
+# 2. Dependências transitivas — confirmar zero deps embedded
+cargo tree -p openhotas-filters --target x86_64-unknown-linux-gnu
+
+# 3. Qualidade de código — clippy e formatação
+cargo fmt --check
+cargo clippy -p openhotas-filters -- -D warnings
+cargo clippy -p openhotas-protocol -- -D warnings
+
+# 4. Build cross do firmware — mais lento, roda por último
+cargo build --release
+cargo clippy --target thumbv8m.main-none-eabihf -- -D warnings
+cd firmware && cargo fmt --check
 ```
 
-Esses três comandos são o gate de qualidade antes de qualquer flash.
-Lógica incorreta é detectada em hardware via defmt ou CDC, não em host.
+**Regras:**
+- `openhotas-filters` é crate library com testes unitários no host
+- `cargo tree` deve mostrar **apenas `libm`** — se `embassy-*` ou `cortex-m`
+  aparecerem, parar e investigar (extração incorreta)
+- `-D warnings` em clippy trata warnings como erros
+- Lógica incorreta de filtros é detectada nos testes do crate; lógica de
+  hardware é detectada em runtime via defmt ou CDC
 
 ---
 
@@ -320,14 +338,17 @@ existe, o agente antecipa que há `src/sensors/mcp23s.rs` e
 
 ```
 src/sensors/     — drivers de hardware (implementam trait Sensor)
-src/filters/     — filtros de sinal (lógica pura, testável no host)
-src/calibration/ — normalização u16→f32 e persistência
+src/filters/     — re-exports de openhotas-filters (lógica pura)
+src/calibration/ — re-exports de openhotas-filters (CalibrationData)
 src/tasks/       — tasks Embassy (sem lógica de negócio inline)
 src/usb/         — stack HID, descritores, GamepadReport
 src/storage/     — primitivas de flash (erase, write, read, crc32)
 src/diagnostics/ — telemetria AtomicU32 e SensorStatus
 src/axis/        — AxisConfig, AxisOutput, AxisPipeline
 src/config/      — DeviceConfig (load/save/validate)
+
+crates/openhotas-filters/ — lógica pura (filtros, calibração, crc32)
+crates/openhotas-protocol/ — tipos compartilhados firmware ↔ PC
 ```
 
 ---
@@ -491,8 +512,10 @@ elf2uf2-rs target/.../release/openhotas out.uf2   # gerar UF2
 ## Gate de qualidade antes de flashar
 
 ```sh
+cargo test -p openhotas-filters && \
+cargo clippy -p openhotas-filters -- -D warnings && \
 cargo build --release && \
-cargo clippy --target thumbv8m.main-none-eabihf && \
+cargo clippy --target thumbv8m.main-none-eabihf -- -D warnings && \
 cargo fmt --check
 ```
 
@@ -533,5 +556,5 @@ cargo fmt --check
 
 ---
 
-*OpenHOTAS · Diretrizes de Código V1.3.0 · Jun/2026*
+*OpenHOTAS · Diretrizes de Código V1.3.0 · Jun/2026 (atualizado: openhotas-filters crate)
 *Fontes: Akita, "Clean Code pra Agentes de IA" + "Boas práticas OSS com LLM"*
