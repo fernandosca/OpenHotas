@@ -211,13 +211,21 @@ fn write_hex_byte(dst: &mut [u8], byte: u8) {
 /// Cada placa tem um chip ID distinto gravado em OTP durante fabricação,
 /// então dois sticks OpenHOTAS no mesmo host não colidem na enumeração USB.
 ///
+/// Se a OTP estiver ilegível (falha teórica), cai num fallback de serial fixo
+/// e emite um `defmt::warn!`. O boot não trava — mas todos os sticks nessa
+/// condição passam a compartilhar o mesmo serial, então o configurador deve
+/// alertar o usuário ao encontrar o serial de fallback.
+///
 /// # Safety
-/// - Usa `otp::get_chipid()` — API segura do embassy-rp.
 /// - Escreve em `SERIAL_STR` no boot, antes do spawn de qualquer task e fora
 ///   de ISR — sem concorrência (single-core, single-thread até aqui).
 unsafe fn chip_id_serial_static() -> &'static str {
-    // Ler chip ID de OTP (rows 0x0-0x3)
-    let chip_id = otp::get_chipid().expect("OTP chip ID read failed");
+    // Fallback: serial fixo quando a OTP está ilegível. Todos os sticks em
+    // degradação compartilham este serial — o configurador deve alertar.
+    let chip_id = otp::get_chipid().unwrap_or_else(|_| {
+        defmt::warn!("OTP chip ID unavailable, using fallback serial");
+        0u64
+    });
 
     // Formatar no buffer local (safe)
     let mut buf = [0u8; 18];
