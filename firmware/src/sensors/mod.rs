@@ -6,6 +6,7 @@ pub enum SensorError {
     SpiError,
     CrcError,
     MagnetError,
+    NotPresent,
     NotInitialized,
 }
 

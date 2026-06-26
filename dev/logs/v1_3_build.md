@@ -402,3 +402,80 @@ cargo tree (host)        : libm only — zero embedded deps
 
 ---
 
+## 9. Validação em Hardware — Raspberry Pi Pico 2 / RP2350A (26/Jun/2026)
+
+### Sintoma inicial
+
+O UF2 era aceito pelo modo `BOOTSEL`, mas, após reiniciar, o dispositivo não
+era enumerado pelo host como HID.
+
+### Causa raiz
+
+O firmware selecionava corretamente o alvo `thumbv8m.main-none-eabihf` e o
+chip `rp235xa`, porém `firmware/memory.x` ainda mantinha o layout de RP2040:
+
+- reserva `BOOT2` de 256 bytes em `0x10000000`;
+- início da aplicação em `0x10000100`;
+- `.start_block` do RP2350 posicionado fora da janela inicial examinada pela
+  Boot ROM.
+
+O RP2350 não usa a reserva `BOOT2` do RP2040. A imagem precisa iniciar em
+`0x10000000`, com a definição `.start_block` dentro dos primeiros 4 KiB da
+flash.
+
+### Correção
+
+- removida a região `BOOT2` de `firmware/memory.x`;
+- `FLASH` alterada para `ORIGIN = 0x10000000`;
+- `.start_block` inserido imediatamente após `.vector_table`;
+- `_stext` movido para depois de `.start_block`;
+- UF2 identificado como família `RP2350_ARM_S` (`0xe48bff59`).
+
+Layout confirmado no ELF:
+
+```text
+.vector_table  0x10000000
+.start_block   0x10000114
+.text          0x10000128
+```
+
+### Resultado em hardware
+
+**PASS:** após gravar o UF2 via USB/`BOOTSEL`, o Raspberry Pi Pico 2 iniciou o
+firmware e foi identificado corretamente pelo host como dispositivo HID.
+
+### Detecção de periféricos desconectados
+
+O primeiro teste sem sensores revelou dois falsos positivos:
+
+- o MISO flutuante do MT6826S produzia frames zerados cujo CRC também era zero;
+- escritas SPI no MCP23S17 retornavam sucesso mesmo sem nenhum chip conectado.
+
+Correções aplicadas:
+
+- pull-up interno habilitado em `SPI0_MISO` e `SPI1_MISO` depois da
+  inicialização do periférico SPI (o Embassy limpa os pulls ao configurar o
+  pad);
+- frames MT6826S totalmente zerados são rejeitados como `NotPresent` antes da
+  validação CRC;
+- inicialização do MCP23S17 lê de volta `IOCON`, `IODIR` e `GPPU` nos dois
+  endereços e exige os valores configurados;
+- novo erro interno `SensorError::NotPresent` diferencia ausência física de
+  falha de transporte.
+
+Validação física sem MT6826S e MCP23S17 conectados:
+
+```text
+Sensor X:      UNHEALTHY
+Sensor Y:      UNHEALTHY
+Sensor Twist:  UNHEALTHY
+Raw X/Y/Twist: 16384 (fallback central)
+Buttons:       DEGRADED
+Protocol CRC:  0
+Flash errors:  0
+```
+
+**PASS:** HID e CDC permaneceram funcionais durante a degradação, sem expor
+leituras falsas como sensores saudáveis.
+
+---
