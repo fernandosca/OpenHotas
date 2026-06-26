@@ -62,6 +62,14 @@ impl<'d> Sensor for Mt6826<'d> {
             self.cs.set_high();
             transfer_result?;
 
+            // A disconnected bus can float low and produce [0, 0, 0, 0].
+            // That pattern has a mathematically valid CRC, but it is not a
+            // trustworthy sensor response. Reject it before CRC validation.
+            if buf[2..=5].iter().all(|byte| *byte == 0) {
+                self.error_count = self.error_count.saturating_add(1);
+                return Err(SensorError::NotPresent);
+            }
+
             let crc_expected = Self::compute_crc8(&buf[2..5]);
             if crc_expected != buf[5] {
                 self.error_count = self.error_count.saturating_add(1);

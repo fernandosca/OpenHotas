@@ -83,6 +83,8 @@ async fn main(spawner: Spawner) {
     let mut spi0_cfg = SpiConfig::default();
     spi0_cfg.frequency = 1_000_000;
     let spi0 = Spi::new_blocking(p.SPI0, p.PIN_6, p.PIN_7, p.PIN_4, spi0_cfg);
+    // Spi::new_blocking resets pad pulls, so apply this after construction.
+    enable_miso_pullup(PIN_SPI0_MISO);
     // Transmute: Converter lifetime local de Spi para 'static.
     // Sound: SPI0 nunca é dropado, inicialização única, single-core.
     spi_bus::init_spi0(unsafe { core::mem::transmute(spi0) });
@@ -92,6 +94,7 @@ async fn main(spawner: Spawner) {
     spi1_cfg.polarity = Polarity::IdleHigh;
     spi1_cfg.phase = Phase::CaptureOnSecondTransition;
     let spi1 = Spi::new_blocking(p.SPI1, p.PIN_14, p.PIN_15, p.PIN_12, spi1_cfg);
+    enable_miso_pullup(PIN_SPI1_MISO);
     // Transmute: Converter lifetime local de Spi para 'static.
     // Sound: SPI1 nunca é dropado, inicialização única, single-core.
     spi_bus::init_spi1(unsafe { core::mem::transmute(spi1) });
@@ -191,6 +194,17 @@ async fn main(spawner: Spawner) {
         .spawn(tasks::input::input_task(sens_x, sens_y, sens_t, mcp23s, pl_x, pl_y, pl_t).unwrap());
     spawner.spawn(tasks::diagnostic::diagnostic_task().unwrap());
     spawner.spawn(tasks::cdc::cdc_task(cdc_sender, cdc_receiver).unwrap());
+}
+
+/// Keep an unconnected SPI MISO line at a deterministic high level.
+///
+/// Embassy configures the complete SPI pad and clears pull resistors inside
+/// `Spi::new_blocking`, so the pull must be restored afterwards.
+fn enable_miso_pullup(pin: u8) {
+    embassy_rp::pac::PADS_BANK0.gpio(pin as usize).modify(|w| {
+        w.set_pue(true);
+        w.set_pde(false);
+    });
 }
 
 /// Buffer estático (no_heap) que guarda o serial USB formatado.

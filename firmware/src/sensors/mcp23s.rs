@@ -72,6 +72,19 @@ impl<'d> Mcp23s<'d> {
             self.write_reg(addr, MCP23S17_IODIRB, 0xFF)?;
             self.write_reg(addr, MCP23S17_GPPUA, 0xFF)?;
             self.write_reg(addr, MCP23S17_GPPUB, 0xFF)?;
+
+            // SPI writes cannot prove that a chip is present. Read back one
+            // configured register from each group so a missing/floating MISO
+            // cannot be reported as a healthy button bus.
+            let verified = self.read_reg(addr, MCP23S17_IOCON)? == 0x0C
+                && self.read_reg(addr, MCP23S17_IODIRA)? == 0xFF
+                && self.read_reg(addr, MCP23S17_IODIRB)? == 0xFF
+                && self.read_reg(addr, MCP23S17_GPPUA)? == 0xFF
+                && self.read_reg(addr, MCP23S17_GPPUB)? == 0xFF;
+            if !verified {
+                self.error_count = self.error_count.saturating_add(1);
+                return Err(SensorError::NotPresent);
+            }
         }
         Ok(())
     }
@@ -87,6 +100,22 @@ impl<'d> Mcp23s<'d> {
             self.cs.set_high();
             write_result?;
             Ok(())
+        })
+        .map_err(|_| SensorError::NotInitialized)?
+    }
+
+    fn read_reg(&mut self, addr: u8, reg: u8) -> Result<u8, SensorError> {
+        let opcode = read_opcode(addr);
+        spi_bus::with_spi0(|spi| {
+            self.cs.set_low();
+            let mut buf = [opcode, reg, 0xFF];
+            let transfer_result = spi.blocking_transfer_in_place(&mut buf).map_err(|_| {
+                self.error_count = self.error_count.saturating_add(1);
+                SensorError::SpiError
+            });
+            self.cs.set_high();
+            transfer_result?;
+            Ok(buf[2])
         })
         .map_err(|_| SensorError::NotInitialized)?
     }
