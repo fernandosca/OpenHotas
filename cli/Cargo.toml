@@ -9,4 +9,4 @@ license = "MIT"
 openhotas-protocol = { path = "../crates/openhotas-protocol", features = ["std"] }
 postcard = "1"
 serde = { version = "1", features = ["derive"] }
-serialport = "4"
+serialport = { version = "4", default-features = false }
