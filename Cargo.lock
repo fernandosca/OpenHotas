@@ -2907,10 +2907,10 @@ dependencies = [
 name = "openhotas-cli"
 version = "1.3.0"
 dependencies = [
- "libc",
  "openhotas-protocol",
  "postcard",
  "serde",
+ "serialport",
 ]
 
 [[package]]

@@ -1,9 +1,11 @@
 use super::{Sensor, SensorError};
 use crate::constants::{
-    MT6826_ANGLE_MAX, MT6826_ANGLE_SHIFT, MT6826_CRC8_POLY, MT6826_MAGNET_OK_MASK,
+    MT6826_ANGLE_MAX, MT6826_ANGLE_SHIFT, MT6826_CRC8_POLY, MT6826_CS_RELEASE_US,
+    MT6826_MAGNET_OK_MASK,
 };
 use crate::spi_bus;
 use embassy_rp::gpio::Output;
+use embassy_time::{block_for, Duration};
 
 #[derive(Debug)]
 pub struct Mt6826<'d> {
@@ -60,6 +62,9 @@ impl<'d> Sensor for Mt6826<'d> {
                 .map_err(|_| SensorError::SpiError);
 
             self.cs.set_high();
+            // Os tres sensores compartilham MISO. Aguarde este dispositivo
+            // liberar a linha antes que o proximo CS possa ser selecionado.
+            block_for(Duration::from_micros(MT6826_CS_RELEASE_US));
             transfer_result?;
 
             // A disconnected bus can float low and produce [0, 0, 0, 0].

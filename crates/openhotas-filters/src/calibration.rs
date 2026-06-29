@@ -1,5 +1,7 @@
 const DEFAULT_CENTER: u16 = 16384;
 const DEFAULT_MAX: u16 = 32767;
+const SENSOR_COUNTS: i32 = 32768;
+const HALF_TURN: i32 = SENSOR_COUNTS / 2;
 
 #[derive(Debug, Clone, Copy)]
 pub struct CalibrationData {
@@ -18,6 +20,36 @@ impl Default for CalibrationData {
     }
 }
 
+impl CalibrationData {
+    /// Shortest signed distance from `center` to `raw` on the 15-bit circle.
+    /// The result is always in -16384..=16383, so crossing 32767 -> 0 is
+    /// continuous for any axis whose travel is less than half a revolution.
+    pub fn circular_delta(raw: u16, center: u16) -> i32 {
+        ((raw as i32 - center as i32 + HALF_TURN) & (SENSOR_COUNTS - 1)) - HALF_TURN
+    }
+
+    pub fn min_delta(&self) -> i32 {
+        Self::circular_delta(self.min, self.center)
+    }
+
+    pub fn max_delta(&self) -> i32 {
+        Self::circular_delta(self.max, self.center)
+    }
+
+    /// Total calibrated travel in raw counts, independent of zero crossing.
+    pub fn span(&self) -> u32 {
+        self.min_delta().unsigned_abs() + self.max_delta().unsigned_abs()
+    }
+
+    /// Both endpoints must be non-zero, lie on opposite sides of center, and
+    /// provide enough physical travel to reject accidental captures.
+    pub fn is_valid(&self, minimum_span: u32) -> bool {
+        let min = self.min_delta();
+        let max = self.max_delta();
+        min != 0 && max != 0 && min.signum() != max.signum() && self.span() >= minimum_span
+    }
+}
+
 /// Runtime calibration wrapper — applies CalibrationData to raw u16 samples.
 #[derive(Debug)]
 pub struct Calibration {
@@ -30,22 +62,18 @@ impl Calibration {
     }
 
     pub fn apply(&self, raw: u16) -> f32 {
-        let raw = raw.clamp(self.data.min, self.data.max);
+        let delta = CalibrationData::circular_delta(raw, self.data.center);
+        let min_delta = self.data.min_delta();
+        let max_delta = self.data.max_delta();
 
-        if raw <= self.data.center {
-            let range = (self.data.center - self.data.min) as f32;
-            if range == 0.0 {
-                return 0.0;
-            }
-            let result = -((self.data.center - raw) as f32) / range;
-            result.clamp(-1.0, 1.0)
+        if delta == 0 || !self.data.is_valid(1) {
+            return 0.0;
+        }
+
+        if delta.signum() == min_delta.signum() {
+            (-(delta as f32 / min_delta as f32)).clamp(-1.0, 0.0)
         } else {
-            let range = (self.data.max - self.data.center) as f32;
-            if range == 0.0 {
-                return 0.0;
-            }
-            let result = (raw - self.data.center) as f32 / range;
-            result.clamp(-1.0, 1.0)
+            (delta as f32 / max_delta as f32).clamp(0.0, 1.0)
         }
     }
 }
@@ -96,6 +124,48 @@ mod tests {
         };
         let wrapper = Calibration::new(cal);
         assert_eq!(wrapper.apply(16384), 0.0);
+    }
+
+    #[test]
+    fn calibration_crosses_zero() {
+        let cal = CalibrationData {
+            min: 30000,
+            center: 1000,
+            max: 4000,
+        };
+        let wrapper = Calibration::new(cal);
+
+        assert!(cal.is_valid(1000));
+        assert_eq!(wrapper.apply(30000), -1.0);
+        assert_eq!(wrapper.apply(1000), 0.0);
+        assert_eq!(wrapper.apply(4000), 1.0);
+        assert!(wrapper.apply(32700) < 0.0);
+        assert!(wrapper.apply(2000) > 0.0);
+    }
+
+    #[test]
+    fn reversed_sensor_direction_crosses_zero() {
+        let cal = CalibrationData {
+            min: 4000,
+            center: 1000,
+            max: 30000,
+        };
+        let wrapper = Calibration::new(cal);
+
+        assert!(cal.is_valid(1000));
+        assert_eq!(wrapper.apply(4000), -1.0);
+        assert_eq!(wrapper.apply(1000), 0.0);
+        assert_eq!(wrapper.apply(30000), 1.0);
+    }
+
+    #[test]
+    fn endpoints_on_same_side_are_invalid() {
+        let cal = CalibrationData {
+            min: 1200,
+            center: 1000,
+            max: 4000,
+        };
+        assert!(!cal.is_valid(1));
     }
 
     #[test]

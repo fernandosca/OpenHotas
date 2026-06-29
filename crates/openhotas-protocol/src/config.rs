@@ -74,7 +74,11 @@ pub struct ResponseCurveData {
     pub point_right: CurvePoint,
 }
 
-/// Raw calibration limits for a single axis (u16, 15-bit sensor).
+/// Raw calibration points on the 15-bit sensor circle.
+///
+/// Endpoints are interpreted through their shortest signed distance from the
+/// center. They therefore do not need to satisfy `min_raw < center_raw <
+/// max_raw`, and a calibrated axis may cross the sensor's 32767 -> 0 boundary.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct CalibrationData {
     pub min_raw: u16,
