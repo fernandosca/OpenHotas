@@ -3,6 +3,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { UseDeviceConfigReturn } from "@/hooks/useDeviceConfig";
 import type { AxisId, ResponseCurveData } from "@/types/protocol";
@@ -100,7 +101,6 @@ export function CurvePage({ deviceConfig }: Props) {
   const activeSetup = CURVE_SETUPS.find((setup) =>
     curvesEqual(activeAxis.response_curve, setup.response_curve),
   );
-  const customSetupActive = !activeSetup;
 
   const pushHistory = (item: CurveHistoryItem) => {
     setCurveHistory((history) => [...history.slice(-29), item]);
@@ -134,7 +134,7 @@ export function CurvePage({ deviceConfig }: Props) {
       <Tabs value={axis} onValueChange={(value) => setAxis(value as AxisId)}>
         <Card className="bg-hud-surface border-hud-border2">
           <CardContent className="space-y-3 px-4 py-4">
-            <div className="flex items-end justify-between gap-3">
+            <div className="grid w-full grid-cols-2 items-start gap-3">
               <div>
                 <div className="mb-1 text-[10px] uppercase tracking-widest text-content-muted">Eixo</div>
                 <TabsList className="h-8 border border-hud-border2 bg-hud-surface2">
@@ -142,7 +142,12 @@ export function CurvePage({ deviceConfig }: Props) {
                     <TabsTrigger
                       key={axisId}
                       value={axisId}
-                      className="h-6 w-14 px-0 text-xs font-mono font-semibold data-[state=active]:text-content-inverse"
+                      className={cn(
+                        "h-6 w-14 px-0 text-xs font-mono font-semibold data-[state=active]:text-content-inverse",
+                        axisId === "X" && "data-[state=active]:bg-axis-x",
+                        axisId === "Y" && "data-[state=active]:bg-axis-y",
+                        axisId === "Twist" && "data-[state=active]:bg-axis-tw",
+                      )}
                     >
                       {axisId}
                     </TabsTrigger>
@@ -150,51 +155,34 @@ export function CurvePage({ deviceConfig }: Props) {
                 </TabsList>
               </div>
 
-              <div className="ml-auto">
+              <div>
                 <div className="mb-1 text-[10px] uppercase tracking-widest text-content-muted">Setup</div>
-                <div className="flex items-center gap-1.5">
-                  {CURVE_SETUPS.map((setup) => {
-                    const active = activeSetup?.id === setup.id;
-
-                    return (
-                      <Button
-                        key={setup.id}
-                        size="sm"
-                        variant="outline"
-                        disabled={activeDisabled}
-                        onClick={() => {
-                          if (!activeDisabled && !active) {
-                            pushHistory(snapshotActiveCurve());
-                            deviceConfig.updateAxis(activeIdx, {
-                              response_curve: { ...setup.response_curve },
-                            });
-                          }
-                        }}
-                        className={cn(
-                          "h-8 px-2.5 text-[10px] font-mono",
-                          active
-                            ? "border-cyan/50 bg-cyan-dim text-cyan"
-                            : "border-hud-border2 bg-transparent text-content-muted hover:text-content-primary",
-                        )}
-                      >
+                <Select
+                  value={activeSetup?.id ?? "custom"}
+                  disabled={activeDisabled}
+                  onValueChange={(value) => {
+                    const setup = CURVE_SETUPS.find((item) => item.id === value);
+                    if (!setup || setup.id === activeSetup?.id) return;
+                    pushHistory(snapshotActiveCurve());
+                    deviceConfig.updateAxis(activeIdx, {
+                      response_curve: { ...setup.response_curve },
+                    });
+                  }}
+                >
+                  <SelectTrigger className="h-8 w-full border-hud-border2 bg-hud-surface2 font-mono text-[10px] text-cyan">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="border-hud-border2 bg-hud-raised text-content-primary">
+                    {CURVE_SETUPS.map((setup) => (
+                      <SelectItem key={setup.id} value={setup.id} className="font-mono text-xs">
                         {setup.label}
-                      </Button>
-                    );
-                  })}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={activeDisabled}
-                    className={cn(
-                      "h-8 px-2.5 text-[10px] font-mono",
-                      customSetupActive
-                        ? "border-cyan/50 bg-cyan-dim text-cyan"
-                        : "border-hud-border2 bg-transparent text-content-muted hover:text-content-primary",
-                    )}
-                  >
-                    Personalizado
-                  </Button>
-                </div>
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="custom" disabled className="font-mono text-xs">
+                      Personalizado
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 

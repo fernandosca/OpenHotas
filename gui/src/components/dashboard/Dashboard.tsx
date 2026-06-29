@@ -222,13 +222,17 @@ function AxisConfigTab({
 
   return (
     <div className="space-y-2">
-      {disabled && (
-        <Alert className="bg-warn/10 border-warn/40 py-1.5">
-          <AlertDescription className="text-xs text-warn">
-            Eixo desabilitado. Reative o eixo para alterar parâmetros.
-          </AlertDescription>
-        </Alert>
-      )}
+      <Alert
+        aria-hidden={!disabled}
+        className={cn(
+          "border-transparent bg-transparent py-1.5",
+          !disabled && "invisible",
+        )}
+      >
+        <AlertDescription className="text-center text-xs text-warn">
+          Eixo desabilitado. Reative o eixo para alterar parâmetros.
+        </AlertDescription>
+      </Alert>
 
       <div className="grid gap-x-4 md:grid-cols-[0.85fr_1.15fr]">
         <div>
@@ -421,8 +425,12 @@ export function AxesPage({ snapshot, deviceConfig }: Props) {
                       <TabsTrigger
                         key={axisId}
                         value={axisId}
-                        className="h-6 w-14 px-0 text-xs font-mono font-semibold data-[state=active]:text-content-inverse"
-                        style={{ "--tw-ring-color": AXIS_COLORS[axisId] } as React.CSSProperties}
+                        className={cn(
+                          "h-6 w-14 px-0 text-xs font-mono font-semibold data-[state=active]:text-content-inverse",
+                          axisId === "X" && "data-[state=active]:bg-axis-x",
+                          axisId === "Y" && "data-[state=active]:bg-axis-y",
+                          axisId === "Twist" && "data-[state=active]:bg-axis-tw",
+                        )}
                       >
                         {axisId}
                       </TabsTrigger>
