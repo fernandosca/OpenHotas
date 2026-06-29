@@ -23,7 +23,7 @@ export function WindowBar() {
         type="button"
         aria-label="Minimizar"
         onClick={() => void minimizeWindow()}
-        className="flex h-6 w-8 items-center justify-center rounded text-slate-500 hover:bg-hud-surface2 hover:text-slate-200"
+        className="flex h-6 w-8 items-center justify-center rounded text-content-muted hover:bg-hud-surface2 hover:text-content-primary"
       >
         <Minus className="h-4 w-4" strokeWidth={1.8} />
       </button>
@@ -31,7 +31,7 @@ export function WindowBar() {
         type="button"
         aria-label="Fechar"
         onClick={() => void closeWindow()}
-        className="flex h-6 w-8 items-center justify-center rounded text-slate-500 hover:bg-danger/15 hover:text-danger"
+        className="flex h-6 w-8 items-center justify-center rounded text-content-muted hover:bg-danger/15 hover:text-danger"
       >
         <X className="h-4 w-4" strokeWidth={1.8} />
       </button>

@@ -5,7 +5,7 @@ import { Slider } from "./slider";
 function RawLine({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between gap-6 rounded border border-hud-border bg-hud-surface2 px-3 py-2 font-mono text-[11px]">
-      <span className="text-slate-500">{label}</span>
+      <span className="text-content-muted">{label}</span>
       <span className="text-cyan">{value}</span>
     </div>
   );
@@ -24,7 +24,7 @@ function ControlledSlider({ defaultValue = 30 }: { defaultValue?: number }) {
           onValueChange={([next]) => setValue(next)}
           className="w-72"
         />
-        <span className="w-12 text-right font-mono text-xs text-slate-300">{value}%</span>
+        <span className="w-12 text-right font-mono text-xs text-content-primary">{value}%</span>
       </div>
       <RawLine label="Radix value" value={`[${value}]`} />
     </div>
@@ -39,8 +39,8 @@ function ProtocolSliderValues() {
     <div className="max-w-xl space-y-6">
       <div className="space-y-2">
         <div className="flex items-center justify-between text-xs">
-          <span className="text-slate-300">Deadzone</span>
-          <span className="font-mono text-slate-400">
+          <span className="text-content-primary">Deadzone</span>
+          <span className="font-mono text-content-muted">
             {(deadzonePermille / 10).toFixed(1)}%
           </span>
         </div>
@@ -57,8 +57,8 @@ function ProtocolSliderValues() {
 
       <div className="space-y-2">
         <div className="flex items-center justify-between text-xs">
-          <span className="text-slate-300">EMA alpha</span>
-          <span className="font-mono text-slate-400">
+          <span className="text-content-primary">EMA alpha</span>
+          <span className="font-mono text-content-muted">
             {(emaPermille / 1000).toFixed(3)}
           </span>
         </div>
@@ -103,7 +103,7 @@ export const Disabled: Story = {
   render: () => (
     <div className="flex items-center gap-3">
       <Slider disabled value={[45]} className="w-72" />
-      <span className="w-12 text-right font-mono text-xs text-slate-500">45%</span>
+      <span className="w-12 text-right font-mono text-xs text-content-muted">45%</span>
     </div>
   ),
 };

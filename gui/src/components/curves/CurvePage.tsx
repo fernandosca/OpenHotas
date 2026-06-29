@@ -136,13 +136,13 @@ export function CurvePage({ deviceConfig }: Props) {
           <CardContent className="space-y-3 px-4 py-4">
             <div className="flex items-end justify-between gap-3">
               <div>
-                <div className="mb-1 text-[10px] uppercase tracking-widest text-slate-500">Eixo</div>
+                <div className="mb-1 text-[10px] uppercase tracking-widest text-content-muted">Eixo</div>
                 <TabsList className="h-8 border border-hud-border2 bg-hud-surface2">
                   {(["X", "Y", "Twist"] as AxisId[]).map((axisId) => (
                     <TabsTrigger
                       key={axisId}
                       value={axisId}
-                      className="h-6 w-14 px-0 text-xs font-mono font-semibold data-[state=active]:text-slate-900"
+                      className="h-6 w-14 px-0 text-xs font-mono font-semibold data-[state=active]:text-content-inverse"
                     >
                       {axisId}
                     </TabsTrigger>
@@ -151,7 +151,7 @@ export function CurvePage({ deviceConfig }: Props) {
               </div>
 
               <div className="ml-auto">
-                <div className="mb-1 text-[10px] uppercase tracking-widest text-slate-500">Setup</div>
+                <div className="mb-1 text-[10px] uppercase tracking-widest text-content-muted">Setup</div>
                 <div className="flex items-center gap-1.5">
                   {CURVE_SETUPS.map((setup) => {
                     const active = activeSetup?.id === setup.id;
@@ -174,7 +174,7 @@ export function CurvePage({ deviceConfig }: Props) {
                           "h-8 px-2.5 text-[10px] font-mono",
                           active
                             ? "border-cyan/50 bg-cyan-dim text-cyan"
-                            : "border-hud-border2 bg-transparent text-slate-500 hover:text-slate-300",
+                            : "border-hud-border2 bg-transparent text-content-muted hover:text-content-primary",
                         )}
                       >
                         {setup.label}
@@ -189,7 +189,7 @@ export function CurvePage({ deviceConfig }: Props) {
                       "h-8 px-2.5 text-[10px] font-mono",
                       customSetupActive
                         ? "border-cyan/50 bg-cyan-dim text-cyan"
-                        : "border-hud-border2 bg-transparent text-slate-500 hover:text-slate-300",
+                        : "border-hud-border2 bg-transparent text-content-muted hover:text-content-primary",
                     )}
                   >
                     Personalizado
@@ -199,7 +199,7 @@ export function CurvePage({ deviceConfig }: Props) {
             </div>
 
             <div className={cn(activeDisabled && "opacity-55")}>
-              <div className="mb-1 text-[10px] uppercase tracking-widest text-slate-500">Deadzone</div>
+              <div className="mb-1 text-[10px] uppercase tracking-widest text-content-muted">Deadzone</div>
               <div className="flex items-center gap-3">
                 <Slider
                   min={0}
@@ -219,7 +219,7 @@ export function CurvePage({ deviceConfig }: Props) {
                   }}
                   className="flex-1"
                 />
-                <span className="w-12 text-right font-mono text-[10px] text-slate-400">
+                <span className="w-12 text-right font-mono text-[10px] text-content-muted">
                   {(activeAxis.deadzone_permille / 10).toFixed(1)}%
                 </span>
               </div>
@@ -231,7 +231,7 @@ export function CurvePage({ deviceConfig }: Props) {
                 variant="ghost"
                 onClick={undoCurveChange}
                 disabled={!curveHistory.length}
-                className="h-7 px-3 text-[11px] text-slate-600 hover:text-slate-300"
+                className="h-7 px-3 text-[11px] text-content-dim hover:text-content-primary"
               >
                 Desfazer
               </Button>
@@ -252,7 +252,7 @@ export function CurvePage({ deviceConfig }: Props) {
               )}
             >
               <AlertDescription className="flex items-center justify-between gap-3">
-                <span className={cn("text-xs", dirty ? "text-warn" : "text-slate-500")}>
+                <span className={cn("text-xs", dirty ? "text-warn" : "text-content-muted")}>
                   {dirty ? "Alterações não salvas no flash" : "Sem alterações pendentes"}
                 </span>
                 <div className="flex gap-2">
@@ -261,7 +261,7 @@ export function CurvePage({ deviceConfig }: Props) {
                     variant="ghost"
                     onClick={reload}
                     disabled={!dirty || loading}
-                    className="h-7 text-xs text-slate-400 hover:text-slate-200 disabled:opacity-40"
+                    className="h-7 text-xs text-content-muted hover:text-content-primary disabled:opacity-40"
                   >
                     Descartar
                   </Button>

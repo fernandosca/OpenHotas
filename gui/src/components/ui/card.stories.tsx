@@ -25,11 +25,11 @@ export const Default: Story = {
       </CardHeader>
       <CardContent className="space-y-2">
         <div className="flex justify-between text-sm">
-          <span className="text-slate-500">Reports</span>
-          <span className="font-mono text-slate-200">124,320</span>
+          <span className="text-content-muted">Reports</span>
+          <span className="font-mono text-content-primary">124,320</span>
         </div>
         <div className="flex justify-between text-sm">
-          <span className="text-slate-500">Cycle</span>
+          <span className="text-content-muted">Cycle</span>
           <span className="font-mono text-cyan">420 us</span>
         </div>
       </CardContent>
@@ -41,7 +41,7 @@ export const HudSurface: Story = {
   render: () => (
     <Card className="bg-hud-surface border-hud-border2">
       <CardHeader className="px-4 pt-3 pb-2">
-        <CardTitle className="text-[11px] uppercase tracking-widest text-slate-500">
+        <CardTitle className="text-[11px] uppercase tracking-widest text-content-muted">
           Saúde dos sensores
         </CardTitle>
       </CardHeader>

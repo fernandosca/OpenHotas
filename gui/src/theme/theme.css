@@ -1,67 +1,137 @@
-/* Centralized color tokens. Tailwind exposes these through tailwind.config.ts. */
+/*
+ * Theme contract. Components consume these semantic variables through Tailwind
+ * or theme/colors.ts; only theme definitions contain literal colors.
+ */
 @layer base {
-  :root {
-    /* shadcn/ui slot variables */
-    --background:    0 0% 100%;
-    --foreground:    222 47% 11%;
-    --card:          0 0% 100%;
-    --card-foreground: 222 47% 11%;
-    --popover:       0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --primary:       191 100% 50%;
-    --primary-foreground: 222 47% 11%;
-    --secondary:     210 40% 96%;
-    --secondary-foreground: 222 47% 11%;
-    --muted:         210 40% 96%;
-    --muted-foreground: 215 16% 47%;
-    --accent:        210 40% 96%;
-    --accent-foreground: 222 47% 11%;
-    --destructive:   0 84% 60%;
-    --destructive-foreground: 0 0% 98%;
-    --border:        214 32% 91%;
-    --input:         214 32% 91%;
-    --ring:          191 100% 50%;
-    --radius:        0.5rem;
+  :root,
+  :root[data-theme="hud"] {
+    color-scheme: dark;
 
-    /* HOTAS HUD tokens */
-    --hud-bg:       #0D0F14;
-    --hud-surface:  #141720;
-    --hud-surface2: #1C2030;
-    --hud-border:   rgba(255,255,255,0.06);
-    --hud-border2:  rgba(255,255,255,0.12);
-    --cyan:         #00D4FF;
-    --cyan-dim:     rgba(0,212,255,0.12);
-    --cyan-glow:    rgba(0,212,255,0.25);
-    --axis-x:       #60A5FA;
-    --axis-y:       #34D399;
-    --axis-tw:      #F59E0B;
-    --c-ok:         #22C55E;
-    --c-warn:       #F59E0B;
-    --c-danger:     #EF4444;
-    --scrollbar-thumb: rgba(255,255,255,0.12);
-    --recharts-axis: rgba(148,163,184,0.70);
-    --recharts-grid: rgba(255,255,255,0.05);
+    --theme-main: #0d0f14;
+    --theme-main-rgb: 13, 15, 20;
+    --theme-panel: #141720;
+    --theme-panel-rgb: 20, 23, 32;
+    --theme-surface: #1c2030;
+    --theme-surface-rgb: 28, 32, 48;
+    --theme-raised: #242a3d;
+    --theme-raised-rgb: 36, 42, 61;
+    --theme-border: rgba(255, 255, 255, 0.06);
+    --theme-border-strong: rgba(255, 255, 255, 0.12);
+
+    --theme-text-primary: #e2e8f0;
+    --theme-text-primary-rgb: 226, 232, 240;
+    --theme-text-muted: #94a3b8;
+    --theme-text-muted-rgb: 148, 163, 184;
+    --theme-text-dim: #475569;
+    --theme-text-on-accent: #0f172a;
+    --theme-text-on-accent-rgb: 15, 23, 42;
+
+    --theme-accent: #00d4ff;
+    --theme-accent-rgb: 0, 212, 255;
+    --theme-accent-soft: rgba(0, 212, 255, 0.12);
+    --theme-accent-glow: rgba(0, 212, 255, 0.25);
+    --theme-ok: #22c55e;
+    --theme-ok-rgb: 34, 197, 94;
+    --theme-warning: #f59e0b;
+    --theme-warning-rgb: 245, 158, 11;
+    --theme-danger: #ef4444;
+    --theme-danger-rgb: 239, 68, 68;
+
+    --theme-axis-x: #60a5fa;
+    --theme-axis-x-rgb: 96, 165, 250;
+    --theme-axis-y: #34d399;
+    --theme-axis-y-rgb: 52, 211, 153;
+    --theme-axis-twist: #f59e0b;
+    --theme-axis-twist-rgb: 245, 158, 11;
+    --theme-track-x: rgba(96, 165, 250, 0.12);
+    --theme-track-y: rgba(52, 211, 153, 0.12);
+    --theme-track-twist: rgba(245, 158, 11, 0.12);
+
+    --theme-canvas-grid: rgba(255, 255, 255, 0.04);
+    --theme-canvas-center: rgba(0, 212, 255, 0.15);
+    --theme-canvas-reference: rgba(255, 255, 255, 0.1);
+    --theme-canvas-label: rgba(148, 163, 184, 0.35);
+    --theme-canvas-marker: rgba(28, 32, 48, 0.9);
+    --theme-scrollbar: rgba(255, 255, 255, 0.12);
+    --theme-chart-axis: rgba(148, 163, 184, 0.7);
+    --theme-chart-grid: rgba(255, 255, 255, 0.05);
   }
 
-  .dark {
-    --background:    222 47% 7%;
-    --foreground:    210 40% 98%;
-    --card:          222 47% 9%;
-    --card-foreground: 210 40% 98%;
-    --popover:       222 47% 9%;
-    --popover-foreground: 210 40% 98%;
-    --primary:       191 100% 50%;
-    --primary-foreground: 222 47% 11%;
-    --secondary:     217 33% 17%;
-    --secondary-foreground: 210 40% 98%;
-    --muted:         217 33% 17%;
-    --muted-foreground: 215 20% 65%;
-    --accent:        217 33% 17%;
-    --accent-foreground: 210 40% 98%;
-    --destructive:   0 63% 31%;
-    --destructive-foreground: 210 40% 98%;
-    --border:        217 33% 17%;
-    --input:         217 33% 17%;
-    --ring:          191 100% 50%;
+  :root[data-theme="glass-cockpit"] {
+    color-scheme: dark;
+
+    --theme-main: #252b28;
+    --theme-main-rgb: 37, 43, 40;
+    --theme-panel: #3a4039;
+    --theme-panel-rgb: 58, 64, 57;
+    --theme-surface: #4d5550;
+    --theme-surface-rgb: 77, 85, 80;
+    --theme-raised: #5e6862;
+    --theme-raised-rgb: 94, 104, 98;
+    --theme-border: rgba(255, 255, 255, 0.08);
+    --theme-border-strong: rgba(255, 255, 255, 0.14);
+
+    --theme-text-primary: #d6ddd8;
+    --theme-text-primary-rgb: 214, 221, 216;
+    --theme-text-muted: #9da69f;
+    --theme-text-muted-rgb: 157, 166, 159;
+    --theme-text-dim: #6b756e;
+    --theme-text-on-accent: #252b28;
+    --theme-text-on-accent-rgb: 37, 43, 40;
+
+    --theme-accent: #7fa8be;
+    --theme-accent-rgb: 127, 168, 190;
+    --theme-accent-soft: rgba(127, 168, 190, 0.12);
+    --theme-accent-glow: rgba(127, 168, 190, 0.25);
+    --theme-ok: #2db87a;
+    --theme-ok-rgb: 45, 184, 122;
+    --theme-warning: #e8a04a;
+    --theme-warning-rgb: 232, 160, 74;
+    --theme-danger: #d97b7b;
+    --theme-danger-rgb: 217, 123, 123;
+
+    --theme-axis-x: #5bb8cf;
+    --theme-axis-x-rgb: 91, 184, 207;
+    --theme-axis-y: #5dc98a;
+    --theme-axis-y-rgb: 93, 201, 138;
+    --theme-axis-twist: #e8a04a;
+    --theme-axis-twist-rgb: 232, 160, 74;
+    --theme-track-x: #1a3a42;
+    --theme-track-y: #1a3325;
+    --theme-track-twist: #3a2e1a;
+
+    --theme-canvas-grid: rgba(255, 255, 255, 0.05);
+    --theme-canvas-center: rgba(127, 168, 190, 0.2);
+    --theme-canvas-reference: rgba(255, 255, 255, 0.12);
+    --theme-canvas-label: rgba(157, 166, 159, 0.55);
+    --theme-canvas-marker: rgba(37, 43, 40, 0.9);
+    --theme-scrollbar: rgba(157, 166, 159, 0.3);
+    --theme-chart-axis: rgba(157, 166, 159, 0.8);
+    --theme-chart-grid: rgba(255, 255, 255, 0.07);
+  }
+
+  :root {
+    /* Backwards-compatible aliases. */
+    --radius: 0.5rem;
+
+    --hud-bg: var(--theme-main);
+    --hud-surface: var(--theme-panel);
+    --hud-surface2: var(--theme-surface);
+    --hud-raised: var(--theme-raised);
+    --hud-border: var(--theme-border);
+    --hud-border2: var(--theme-border-strong);
+    --cyan: var(--theme-accent);
+    --cyan-rgb: var(--theme-accent-rgb);
+    --cyan-dim: var(--theme-accent-soft);
+    --cyan-glow: var(--theme-accent-glow);
+    --axis-x: var(--theme-axis-x);
+    --axis-y: var(--theme-axis-y);
+    --axis-tw: var(--theme-axis-twist);
+    --c-ok: var(--theme-ok);
+    --c-warn: var(--theme-warning);
+    --c-danger: var(--theme-danger);
+    --scrollbar-thumb: var(--theme-scrollbar);
+    --recharts-axis: var(--theme-chart-axis);
+    --recharts-grid: var(--theme-chart-grid);
   }
 }

@@ -33,7 +33,7 @@ export function Diagnostics() {
       <Card className="flex min-h-0 flex-1 flex-col bg-hud-surface border-hud-border2">
         <CardContent className="flex min-h-0 flex-1 flex-col px-4 py-4">
           <div>
-            <div className="mb-2 text-[11px] uppercase tracking-widest text-slate-500">
+            <div className="mb-2 text-[11px] uppercase tracking-widest text-content-muted">
               Runtime stats
             </div>
             <div className="space-y-2">
@@ -58,19 +58,19 @@ export function Diagnostics() {
               ] : []),
             ].map(([label, value]) => (
               <div key={label} className="flex justify-between items-center">
-                <span className="text-[10px] text-slate-500">{label}</span>
+                <span className="text-[10px] text-content-muted">{label}</span>
                 <span className={cn(
                   "font-mono text-[11px]",
                   ["Proto CRC", "Sensor CRC", "Magneto", "Flash", "Send errors", "Sensor X", "Sensor Y", "Sensor Twist"].includes(label)
                     ? Number(value) === 0 ? "text-ok" : "text-warn"
-                    : "text-slate-300"
+                    : "text-content-primary"
                 )}>
                   {value}
                 </span>
               </div>
             ))}
             {!stats && !counters && !sensorSt && (
-              <div className="text-xs text-slate-600 text-center py-2">—</div>
+              <div className="text-xs text-content-dim text-center py-2">—</div>
             )}
             </div>
 
@@ -79,7 +79,7 @@ export function Diagnostics() {
                 type="button"
                 onClick={refresh}
                 disabled={refreshing}
-                className="text-[11px] font-mono text-cyan hover:text-cyan/80 disabled:text-slate-600"
+                className="text-[11px] font-mono text-cyan hover:text-cyan/80 disabled:text-content-dim"
               >
                 {refreshing ? "Atualizando..." : "Atualizar tudo"}
               </button>

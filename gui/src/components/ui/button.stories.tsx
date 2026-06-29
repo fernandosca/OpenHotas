@@ -65,11 +65,11 @@ export const HotasActions: Story = {
         <Save className="h-4 w-4" />
         Salvar
       </Button>
-      <Button variant="outline" className="border-hud-border2 text-slate-400">
+      <Button variant="outline" className="border-hud-border2 text-content-muted">
         <RotateCcw className="h-4 w-4" />
         Recarregar
       </Button>
-      <Button variant="ghost" className="text-slate-500 hover:text-danger hover:bg-danger/10">
+      <Button variant="ghost" className="text-content-muted hover:text-danger hover:bg-danger/10">
         <Unplug className="h-4 w-4" />
         Desconectar
       </Button>
