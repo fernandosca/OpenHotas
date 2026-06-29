@@ -1,23 +1,19 @@
 //! Transport layer — discovers CDC port, sends requests, receives responses.
 //!
-//! Linux-only: opens /dev/ttyACM* directly via raw file I/O.
-//! No `serialport` / `libudev` dependency required.
+//! Cross-platform serial transport (Linux / Windows / macOS).
 
 use openhotas_protocol::frame::{crc16_ccitt, FrameParser, MAX_PAYLOAD_SIZE, SOF_A, SOF_B};
 use openhotas_protocol::request::Request;
 use openhotas_protocol::response::{DeviceInfo, Response};
 use openhotas_protocol::version::PROTOCOL_VERSION_MAJOR;
-use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
-use std::os::unix::fs::OpenOptionsExt;
-use std::os::unix::io::AsRawFd;
 use std::time::Duration;
 
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(1);
 
 /// Connection to the OpenHOTAS CDC port.
 pub struct OpenHotasTransport {
-    file: File,
+    port: Box<dyn serialport::SerialPort>,
     parser: FrameParser,
 }
 
@@ -41,10 +37,7 @@ pub enum TransportError {
 impl std::fmt::Display for TransportError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::DeviceNotFound => write!(
-                f,
-                "No OpenHOTAS device found. Is it connected? (tried /dev/ttyACM0-9)"
-            ),
+            Self::DeviceNotFound => write!(f, "No OpenHOTAS device found. Is it connected?"),
             Self::PortError(e) => write!(f, "Port error: {e}"),
             Self::SendError(e) => write!(f, "Send error: {e}"),
             Self::Timeout => write!(f, "No response from device (timeout)"),
@@ -59,16 +52,11 @@ impl OpenHotasTransport {
     ///
     /// Tries /dev/ttyACM0 through /dev/ttyACM9, plus /dev/ttyUSB0-9.
     pub fn connect() -> Result<Self, TransportError> {
-        let mut found_port = false;
-        for i in 0..10 {
-            let path = format!("/dev/ttyACM{i}");
-            if let Some(transport) = Self::try_open_openhotas(&path, &mut found_port) {
-                return Ok(transport);
-            }
-        }
-        for i in 0..10 {
-            let path = format!("/dev/ttyUSB{i}");
-            if let Some(transport) = Self::try_open_openhotas(&path, &mut found_port) {
+        let ports = serialport::available_ports()
+            .map_err(|e| TransportError::PortError(format!("cannot list serial ports: {e}")))?;
+        let found_port = !ports.is_empty();
+        for port in ports {
+            if let Some(transport) = Self::try_open_openhotas(&port.port_name) {
                 return Ok(transport);
             }
         }
@@ -88,29 +76,20 @@ impl OpenHotasTransport {
         Ok(transport)
     }
 
-    fn try_open_openhotas(path: &str, found_port: &mut bool) -> Option<Self> {
-        if fs::metadata(path).is_err() {
-            return None;
-        }
-        *found_port = true;
+    fn try_open_openhotas(path: &str) -> Option<Self> {
         let mut transport = Self::open(path).ok()?;
         transport.validate_openhotas().ok()?;
         Some(transport)
     }
 
     fn open(path: &str) -> Result<Self, TransportError> {
-        let file = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .custom_flags(libc::O_NOCTTY | libc::O_NONBLOCK)
-            .open(path)
+        let port = serialport::new(path, 115_200)
+            .timeout(Duration::from_millis(20))
+            .open()
             .map_err(|e| TransportError::PortError(format!("Cannot open {path}: {e}")))?;
 
-        // Configure termios for raw binary CDC communication
-        configure_tty(&file)?;
-
         Ok(Self {
-            file,
+            port,
             parser: FrameParser::new(),
         })
     }
@@ -118,10 +97,10 @@ impl OpenHotasTransport {
     /// Send a request and wait for the response.
     pub fn send(&mut self, request: Request) -> Result<Response, TransportError> {
         let frame = self.build_request_frame(&request)?;
-        self.file
+        self.port
             .write_all(&frame)
             .map_err(|e| TransportError::SendError(e.to_string()))?;
-        self.file
+        self.port
             .flush()
             .map_err(|e| TransportError::SendError(e.to_string()))?;
 
@@ -198,7 +177,7 @@ impl OpenHotasTransport {
                 return Err(TransportError::Timeout);
             }
 
-            match self.file.read(&mut byte_buf) {
+            match self.port.read(&mut byte_buf) {
                 Ok(1) => match self.parser.feed(byte_buf[0]) {
                     Ok(Some(frame)) => {
                         return postcard::from_bytes::<Response>(&frame.payload)
@@ -213,7 +192,12 @@ impl OpenHotasTransport {
                     continue;
                 }
                 Ok(_) => continue, // read >1 byte (shouldn't happen with 1-byte buf)
-                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                Err(ref e)
+                    if matches!(
+                        e.kind(),
+                        std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                    ) =>
+                {
                     // Non-blocking, no data yet — brief sleep then retry
                     std::thread::sleep(Duration::from_millis(1));
                     continue;
@@ -222,44 +206,4 @@ impl OpenHotasTransport {
             }
         }
     }
-}
-
-/// Configure the TTY for raw binary CDC communication.
-///
-/// CDC ACM does not use baud rate, parity, or flow control in the
-/// traditional sense — the USB stack handles framing. But we set
-/// raw mode to avoid the kernel's line discipline interfering.
-fn configure_tty(file: &File) -> Result<(), TransportError> {
-    let fd = file.as_raw_fd();
-
-    // Get current attributes
-    let mut termios: libc::termios = unsafe { std::mem::zeroed() };
-    if unsafe { libc::tcgetattr(fd, &mut termios) } != 0 {
-        return Err(TransportError::PortError("tcgetattr failed".into()));
-    }
-
-    // Raw mode: no canonical processing, no echo, no signals
-    // cfmakeraw equivalent
-    termios.c_iflag &= !(libc::IGNBRK
-        | libc::BRKINT
-        | libc::PARMRK
-        | libc::ISTRIP
-        | libc::INLCR
-        | libc::IGNCR
-        | libc::ICRNL
-        | libc::IXON);
-    termios.c_oflag &= !libc::OPOST;
-    termios.c_lflag &= !(libc::ECHO | libc::ECHONL | libc::ICANON | libc::ISIG | libc::IEXTEN);
-    termios.c_cflag &= !(libc::CSIZE | libc::PARENB);
-    termios.c_cflag |= libc::CS8;
-
-    // VMIN = 0, VTIME = 1 (0.1s inter-byte timeout)
-    termios.c_cc[libc::VMIN] = 0;
-    termios.c_cc[libc::VTIME] = 1;
-
-    if unsafe { libc::tcsetattr(fd, libc::TCSANOW, &termios) } != 0 {
-        return Err(TransportError::PortError("tcsetattr failed".into()));
-    }
-
-    Ok(())
 }

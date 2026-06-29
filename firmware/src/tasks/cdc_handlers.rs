@@ -225,7 +225,9 @@ pub fn handle_calibration_request(
             let max = session.max.ok_or(ProtocolError::CalibrationError);
             match (min, center, max) {
                 (Ok(min), Ok(center), Ok(max)) => {
-                    if min >= center || center >= max || max - min < 1000 {
+                    let calibration =
+                        crate::calibration::data::CalibrationData { min, center, max };
+                    if !calibration.is_valid(1000) {
                         return Response::Error(ProtocolError::CalibrationError);
                     }
                     let idx = *axis as usize;

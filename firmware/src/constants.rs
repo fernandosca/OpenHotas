@@ -39,6 +39,11 @@ pub const MT6826_SPI_FREQ_HZ: u32 = 1_000_000;
 
 pub const MT6826_SPI_MODE: u8 = 3;
 
+/// Tempo morto apos CSN subir antes de outro sensor usar o MISO compartilhado.
+/// O datasheet nao exige uma espera em microssegundos; 2 us fornece margem
+/// conservadora para propagacao na fiacao sem afetar o ciclo de 500 us.
+pub const MT6826_CS_RELEASE_US: u64 = 2;
+
 /// Comando de leitura de angulo — Burst Angle Read (datasheet §8.6.8)
 /// Frame de comando: C3-C0 = 1010 (0x0A)
 pub const MT6826_CMD_READ_ANGLE: u8 = 0x0A;

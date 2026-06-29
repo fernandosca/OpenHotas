@@ -161,13 +161,12 @@ pub fn from_protocol_config(
             || pa.travel.travel_limit_pct < 1
             || pa.travel.travel_limit_pct > 100
             || !valid_debounce_ms(cfg.buttons.debounce_ms)
-            || pa.calibration.min_raw >= pa.calibration.center_raw
-            || pa.calibration.center_raw >= pa.calibration.max_raw
-            || pa
-                .calibration
-                .max_raw
-                .saturating_sub(pa.calibration.min_raw)
-                < 1000
+            || !(crate::calibration::data::CalibrationData {
+                min: pa.calibration.min_raw,
+                center: pa.calibration.center_raw,
+                max: pa.calibration.max_raw,
+            })
+            .is_valid(1000)
             // Response curve validation
             || pa.response_curve.point_left.x >= 0
             || pa.response_curve.point_left.x <= -1000
@@ -204,11 +203,13 @@ pub fn from_protocol_config(
                 deadzone: pa.deadzone_permille as f32 / 1000.0,
                 // V1.24: scale by calibration range, not full 15-bit (audit #2)
                 max_jump: {
-                    let cal_range = pa
-                        .calibration
-                        .max_raw
-                        .saturating_sub(pa.calibration.min_raw)
-                        .max(1);
+                    let cal_range = crate::calibration::data::CalibrationData {
+                        min: pa.calibration.min_raw,
+                        center: pa.calibration.center_raw,
+                        max: pa.calibration.max_raw,
+                    }
+                    .span()
+                    .max(1);
                     pa.max_jump_raw as f32 / cal_range as f32
                 },
                 response_p1: (

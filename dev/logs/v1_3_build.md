@@ -479,3 +479,145 @@ Flash errors:  0
 leituras falsas como sensores saudáveis.
 
 ---
+
+## 10. Calibração Circular dos Eixos (28/Jun/2026)
+
+### Motivação
+
+Durante a montagem do segundo eixo, o curso físico do ímã atravessou o rollover
+do MT6826S (`32767 -> 0`). A calibração linear anterior exigia
+`min_raw < center_raw < max_raw`, portanto não conseguia representar esse
+curso sem reposicionar mecanicamente o ímã.
+
+### Solução
+
+A calibração passou a operar no domínio circular de 15 bits. Cada amostra e
+cada extremo são representados pela menor distância assinada em relação ao
+centro:
+
+```rust
+delta = ((raw - center + 16384) mod 32768) - 16384
+```
+
+Com isso:
+
+- `min_raw`, `center_raw` e `max_raw` continuam sendo os três pontos capturados;
+- a ordem numérica dos pontos brutos deixa de ser relevante;
+- o curso pode atravessar `32767 -> 0` sem salto na saída processada;
+- sensores montados nas duas orientações são aceitos;
+- cada extremo deve estar em um lado diferente do centro;
+- o curso mínimo de 1000 contagens continua obrigatório;
+- `max_jump_raw` passa a ser escalado pelo curso circular calibrado.
+
+Não foi adicionada migração de calibração persistida. Esta mudança será testada
+partindo de configuração limpa e nova captura dos três pontos.
+
+### Testes automatizados
+
+Foram adicionados casos para:
+
+- passagem pelo zero;
+- passagem pelo zero com direção invertida;
+- centro e extremos corretos;
+- rejeição de extremos capturados no mesmo lado do centro.
+
+Resultado:
+
+```text
+openhotas-filters:  32/32 PASS
+openhotas-protocol:  8/8 PASS
+firmware release:        PASS
+```
+
+### Validação física parcial
+
+- Eixo X validado em SPI Mode 3 a 1 MHz, com centro e limites físicos corretos
+  no painel de joystick do Windows e zero erros após movimento completo.
+- Eixo Y detectado de forma estável e confirmou em dados brutos a passagem
+  física pelo rollover (`~30372 -> 32767 -> 0 -> ~2085`).
+- A calibração circular do Y foi salva; a validação prolongada da saída
+  processada com os três eixos ainda está pendente.
+- Erros globais elevados durante estes testes são produzidos principalmente
+  pelos canais X/Twist desconectados, consultados continuamente pelo firmware.
+
+### Pendência observada
+
+O eixo Y apresentou raros erros CRC apenas ao mover pelo lado que atravessa o
+rollover. Parado, ou movido no lado que não atravessa zero, o contador não
+aumentou. A calibração circular não participa da aquisição SPI nem do cálculo
+do CRC, portanto a causa ainda precisa ser instrumentada no driver.
+
+Investigação futura:
+
+- registrar `ANGLE_H`, `ANGLE_L`, `STATUS`, CRC recebido e CRC calculado;
+- registrar amostra anterior/atual nas falhas próximas ao rollover;
+- não adicionar retry antes de capturar a causa, para evitar mascará-la;
+- classificar resposta totalmente `0xFF` como `NotPresent`, separando sensor
+  ausente de erro CRC real.
+
+### Próxima etapa
+
+Conectar X, Y e Twist simultaneamente, recalibrar os três eixos a partir de
+estado limpo e executar testes prolongados de movimento, centro, extremos,
+rollover, CRC e enumeração HID.
+
+---
+
+## 11. Proteção de troca de CS no barramento MT6826S (29/Jun/2026)
+
+### Sintoma observado
+
+Após operação prolongada com os três MT6826S no mesmo SPI1, os três eixos
+passaram simultaneamente para `UNHEALTHY`. Os contadores por eixo cresceram na
+mesma taxa e mantiveram valores idênticos, enquanto os contadores globais de
+CRC e magneto permaneceram zerados.
+
+O comportamento é compatível com resposta zerada persistente no MISO
+compartilhado, classificada pelo driver como `NotPresent`. Como o pipeline usa
+o centro nominal quando uma leitura falha, o joystick deixou de responder aos
+movimentos enquanto a falha permaneceu ativa.
+
+Um dos módulos foi isolado como suspeito de manter o barramento ocupado. Em
+teste individual posterior, ele voltou a responder normalmente. Portanto, não
+há confirmação de dano permanente; o reteste com os três módulos reunidos
+permanece necessário.
+
+### Margem entre sensores
+
+As leituras de X, Y e Twist eram executadas consecutivamente, sem tempo morto
+explícito entre a subida do CSN de um sensor e a descida do CSN seguinte.
+
+Foi adicionado um intervalo conservador de 2 us imediatamente após cada
+`CSN HIGH`, dentro do driver MT6826S. Assim, o próximo sensor somente pode ser
+selecionado depois desse intervalo, inclusive quando a transferência anterior
+termina com erro.
+
+O datasheet indica que MISO retorna para alta impedância na subida de CSN e não
+exige espera em escala de microssegundos. O intervalo adicional serve como
+margem para propagação e fiação no barramento físico; ele não recupera um
+dispositivo que ignore CSN por falha elétrica.
+
+Impacto temporal por ciclo completo:
+
+```text
+3 sensores x 2 us = 6 us
+periodo do input task = 500 us
+```
+
+### Validação
+
+```text
+Firmware release: PASS
+Sensor suspeito isolado: voltou a responder
+Tres sensores simultaneos: pendente de reteste prolongado
+```
+
+### Diagnóstico pendente
+
+O comando `sensor-status` contabiliza respostas zeradas no total por eixo, mas
+o comando `errors` ainda não inclui `NotPresent` no total global. Por isso, uma
+falha contínua de aquisição pode coexistir com CRC e magneto zerados. Essa
+limitação de telemetria deve ser corrigida separadamente, sem confundir estado
+atual de saúde com o histórico de falhas desde o boot.
+
+---
