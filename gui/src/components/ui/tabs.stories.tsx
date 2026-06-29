@@ -24,13 +24,13 @@ export const AxisTabs: Story = {
         <TabsTrigger value="Y" className="w-14 px-0">Y</TabsTrigger>
         <TabsTrigger value="Twist" className="w-14 px-0">Twist</TabsTrigger>
       </TabsList>
-      <TabsContent value="X" className="text-sm text-slate-300">
+      <TabsContent value="X" className="text-sm text-content-primary">
         Configuração do eixo X.
       </TabsContent>
-      <TabsContent value="Y" className="text-sm text-slate-300">
+      <TabsContent value="Y" className="text-sm text-content-primary">
         Configuração do eixo Y.
       </TabsContent>
-      <TabsContent value="Twist" className="text-sm text-slate-300">
+      <TabsContent value="Twist" className="text-sm text-content-primary">
         Configuração do eixo Twist.
       </TabsContent>
     </Tabs>

@@ -31,7 +31,7 @@ export const NumberField: Story = {
         id="max-jump"
         type="number"
         defaultValue={4915}
-        className="font-mono text-right bg-hud-surface2 border-hud-border2 text-slate-200"
+        className="font-mono text-right bg-hud-surface2 border-hud-border2 text-content-primary"
       />
     </div>
   ),

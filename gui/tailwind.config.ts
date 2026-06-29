@@ -6,38 +6,38 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        border: "hsl(var(--border))",
-        input: "hsl(var(--input))",
-        ring: "hsl(var(--ring))",
-        background: "hsl(var(--background))",
-        foreground: "hsl(var(--foreground))",
+        border: "var(--theme-border)",
+        input: "var(--theme-border-strong)",
+        ring: "rgb(var(--theme-accent-rgb) / <alpha-value>)",
+        background: "rgb(var(--theme-main-rgb) / <alpha-value>)",
+        foreground: "rgb(var(--theme-text-primary-rgb) / <alpha-value>)",
         primary: {
-          DEFAULT: "hsl(var(--primary))",
-          foreground: "hsl(var(--primary-foreground))",
+          DEFAULT: "rgb(var(--theme-accent-rgb) / <alpha-value>)",
+          foreground: "rgb(var(--theme-text-on-accent-rgb) / <alpha-value>)",
         },
         secondary: {
-          DEFAULT: "hsl(var(--secondary))",
-          foreground: "hsl(var(--secondary-foreground))",
+          DEFAULT: "rgb(var(--theme-surface-rgb) / <alpha-value>)",
+          foreground: "rgb(var(--theme-text-primary-rgb) / <alpha-value>)",
         },
         destructive: {
-          DEFAULT: "hsl(var(--destructive))",
-          foreground: "hsl(var(--destructive-foreground))",
+          DEFAULT: "rgb(var(--theme-danger-rgb) / <alpha-value>)",
+          foreground: "rgb(var(--theme-text-primary-rgb) / <alpha-value>)",
         },
         muted: {
-          DEFAULT: "hsl(var(--muted))",
-          foreground: "hsl(var(--muted-foreground))",
+          DEFAULT: "rgb(var(--theme-surface-rgb) / <alpha-value>)",
+          foreground: "rgb(var(--theme-text-muted-rgb) / <alpha-value>)",
         },
         accent: {
-          DEFAULT: "hsl(var(--accent))",
-          foreground: "hsl(var(--accent-foreground))",
+          DEFAULT: "rgb(var(--theme-raised-rgb) / <alpha-value>)",
+          foreground: "rgb(var(--theme-text-primary-rgb) / <alpha-value>)",
         },
         popover: {
-          DEFAULT: "hsl(var(--popover))",
-          foreground: "hsl(var(--popover-foreground))",
+          DEFAULT: "rgb(var(--theme-raised-rgb) / <alpha-value>)",
+          foreground: "rgb(var(--theme-text-primary-rgb) / <alpha-value>)",
         },
         card: {
-          DEFAULT: "hsl(var(--card))",
-          foreground: "hsl(var(--card-foreground))",
+          DEFAULT: "rgb(var(--theme-panel-rgb) / <alpha-value>)",
+          foreground: "rgb(var(--theme-text-primary-rgb) / <alpha-value>)",
         },
         // ── HOTAS design tokens ──────────────────────────────────
         // Dark theme (cockpit / HUD aesthetic)
@@ -45,8 +45,15 @@ const config: Config = {
           bg:       "var(--hud-bg)",
           surface:  "var(--hud-surface)",
           surface2: "var(--hud-surface2)",
+          raised:   "var(--hud-raised)",
           border:   "var(--hud-border)",
           border2:  "var(--hud-border2)",
+        },
+        content: {
+          primary: "var(--theme-text-primary)",
+          muted:   "var(--theme-text-muted)",
+          dim:     "var(--theme-text-dim)",
+          inverse: "var(--theme-text-on-accent)",
         },
         axis: {
           x:    "var(--axis-x)",
@@ -54,12 +61,12 @@ const config: Config = {
           tw:   "var(--axis-tw)",
         },
         // Semantic
-        ok:    "var(--c-ok)",
-        warn:  "var(--c-warn)",
-        danger:"var(--c-danger)",
+        ok:    "rgb(var(--theme-ok-rgb) / <alpha-value>)",
+        warn:  "rgb(var(--theme-warning-rgb) / <alpha-value>)",
+        danger:"rgb(var(--theme-danger-rgb) / <alpha-value>)",
         // Accent
         cyan: {
-          DEFAULT: "var(--cyan)",
+          DEFAULT: "rgb(var(--theme-accent-rgb) / <alpha-value>)",
           dim:     "var(--cyan-dim)",
           glow:    "var(--cyan-glow)",
         },

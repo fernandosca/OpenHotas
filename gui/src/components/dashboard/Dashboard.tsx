@@ -13,7 +13,8 @@ import type { DeviceSnapshot } from "@/hooks/useDevicePolling";
 import type { AxisId, AxisToButtonConfig } from "@/types/protocol";
 import { AXIS_INDEX, isAxisHealthy } from "@/types/protocol";
 import { cn } from "@/lib/utils";
-import { AXIS_COLORS, CANVAS_COLORS, HOTAS_COLORS } from "@/theme/colors";
+import { AXIS_COLORS, getThemeColor } from "@/theme/colors";
+import { useTheme } from "@/theme/ThemeProvider";
 
 interface Props {
   snapshot: DeviceSnapshot;
@@ -32,6 +33,7 @@ function clampInt(value: number, min: number, max: number): number {
 // ── HUD Crosshair Canvas ───────────────────────────────────────────────────────
 function HudCanvas({ x, y, twist }: { x: number; y: number; twist: number }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const { theme } = useTheme();
 
   useEffect(() => {
     const c = ref.current; if (!c) return;
@@ -39,21 +41,27 @@ function HudCanvas({ x, y, twist }: { x: number; y: number; twist: number }) {
     const W = c.width, H = c.height;
     const PAD = 8;
     const PW = W - PAD * 2, PH = H - PAD * 2;
+    const colors = {
+      surface: getThemeColor("surface"), grid: getThemeColor("grid"),
+      center: getThemeColor("center"), marker: getThemeColor("marker"),
+      accent: getThemeColor("accent"), accentGlow: getThemeColor("accentGlow"),
+      twist: getThemeColor("axisTwist"),
+    };
 
     ctx.clearRect(0, 0, W, H);
 
     // Background
-    ctx.fillStyle = CANVAS_COLORS.hudBackground; ctx.roundRect(0, 0, W, H, 8); ctx.fill();
+    ctx.fillStyle = colors.surface; ctx.roundRect(0, 0, W, H, 8); ctx.fill();
 
     // Grid lines
-    ctx.strokeStyle = CANVAS_COLORS.grid; ctx.lineWidth = 0.5;
+    ctx.strokeStyle = colors.grid; ctx.lineWidth = 0.5;
     for (let i = 1; i < 4; i++) {
       ctx.beginPath(); ctx.moveTo(PAD + i * PW / 4, PAD); ctx.lineTo(PAD + i * PW / 4, PAD + PH); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(PAD, PAD + i * PH / 4); ctx.lineTo(PAD + PW, PAD + i * PH / 4); ctx.stroke();
     }
 
     // Center axes
-    ctx.strokeStyle = CANVAS_COLORS.centerAxis; ctx.lineWidth = 0.5;
+    ctx.strokeStyle = colors.center; ctx.lineWidth = 0.5;
     ctx.beginPath(); ctx.moveTo(W / 2, PAD); ctx.lineTo(W / 2, PAD + PH); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(PAD, H / 2); ctx.lineTo(PAD + PW, H / 2); ctx.stroke();
 
@@ -64,20 +72,20 @@ function HudCanvas({ x, y, twist }: { x: number; y: number; twist: number }) {
     const twistStart = -Math.PI / 2;
     const twistEnd = twistStart + twN * Math.PI;
 
-    ctx.strokeStyle = CANVAS_COLORS.twistRing; ctx.lineWidth = 2;
+    ctx.strokeStyle = colors.twist; ctx.globalAlpha = 0.12; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(cx, cy, twistRadius, 0, Math.PI * 2); ctx.stroke();
 
-    ctx.strokeStyle = CANVAS_COLORS.twistArc; ctx.lineWidth = 3;
+    ctx.globalAlpha = 0.65; ctx.strokeStyle = colors.twist; ctx.lineWidth = 3;
     ctx.beginPath();
     if (twN !== 0) ctx.arc(cx, cy, twistRadius, twistStart, twistEnd, twN < 0);
     ctx.stroke();
 
     const twMx = cx + Math.cos(twistEnd) * twistRadius;
     const twMy = cy + Math.sin(twistEnd) * twistRadius;
-    ctx.strokeStyle = CANVAS_COLORS.twistPointer; ctx.lineWidth = 1;
+    ctx.globalAlpha = 0.35; ctx.strokeStyle = colors.twist; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(twMx, twMy); ctx.stroke();
-    ctx.fillStyle = HOTAS_COLORS.axis.Twist; ctx.beginPath(); ctx.arc(twMx, twMy, 4, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = CANVAS_COLORS.markerStroke; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.globalAlpha = 1; ctx.fillStyle = colors.twist; ctx.beginPath(); ctx.arc(twMx, twMy, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = colors.marker; ctx.lineWidth = 1.5; ctx.stroke();
 
     // Dot position
     const px = W / 2 + (clampAxis(x) / 32767) * (PW / 2 - 4);
@@ -85,19 +93,20 @@ function HudCanvas({ x, y, twist }: { x: number; y: number; twist: number }) {
 
     // Glow
     const g = ctx.createRadialGradient(px, py, 0, px, py, 16);
-    g.addColorStop(0, HOTAS_COLORS.accent.cyanGlow); g.addColorStop(1, "transparent");
+    g.addColorStop(0, colors.accentGlow); g.addColorStop(1, "transparent");
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(px, py, 16, 0, Math.PI * 2); ctx.fill();
 
     // Dashed crosslines
-    ctx.strokeStyle = CANVAS_COLORS.cyanGuide; ctx.lineWidth = 0.5; ctx.setLineDash([3, 3]);
+    ctx.strokeStyle = colors.accent; ctx.globalAlpha = 0.4; ctx.lineWidth = 0.5; ctx.setLineDash([3, 3]);
     ctx.beginPath(); ctx.moveTo(px, H / 2); ctx.lineTo(px, py + 5); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(W / 2, py); ctx.lineTo(px - 5, py); ctx.stroke();
     ctx.setLineDash([]);
 
     // Dot
-    ctx.fillStyle = HOTAS_COLORS.accent.cyan; ctx.beginPath(); ctx.arc(px, py, 4, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = CANVAS_COLORS.cyanStroke; ctx.lineWidth = 2; ctx.stroke();
-  }, [x, y, twist]);
+    ctx.globalAlpha = 1; ctx.fillStyle = colors.accent; ctx.beginPath(); ctx.arc(px, py, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 0.3; ctx.strokeStyle = colors.accent; ctx.lineWidth = 2; ctx.stroke();
+    ctx.globalAlpha = 1;
+  }, [x, y, twist, theme]);
 
   return (
     <canvas
@@ -123,13 +132,13 @@ function AxisBar({ label, value, color, healthy }: { label: string; value: numbe
         </span>
         <div className="flex items-center gap-2">
           {!healthy && <span className="text-[9px] text-danger font-mono">⚠ FAULT</span>}
-          <span className="font-mono text-[11px] text-slate-300 tabular-nums w-14 text-right">
+          <span className="font-mono text-[11px] text-content-primary tabular-nums w-14 text-right">
             {clamped.toLocaleString()}
           </span>
         </div>
       </div>
       <div className="relative h-1.5 bg-hud-border2 rounded-full overflow-hidden">
-        <span className="absolute left-1/2 top-0 bottom-0 w-px bg-slate-600 z-10" />
+        <span className="absolute left-1/2 top-0 bottom-0 w-px bg-content-dim z-10" />
         <div
           className="absolute top-0 bottom-0 rounded-full transition-all duration-75"
           style={{
@@ -153,16 +162,16 @@ function FieldRow({
         {sub ? (
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className="cursor-help text-[11px] text-slate-200 decoration-slate-500 decoration-dotted underline-offset-4 hover:underline">
+              <div className="cursor-help text-[11px] text-content-primary decoration-content-muted decoration-dotted underline-offset-4 hover:underline">
                 {label}
               </div>
             </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-60 bg-hud-surface2 border-hud-border2 text-slate-200 text-xs">
+            <TooltipContent side="top" className="max-w-60 bg-hud-surface2 border-hud-border2 text-content-primary text-xs">
               {sub}
             </TooltipContent>
           </Tooltip>
         ) : (
-          <div className="text-[11px] text-slate-200">{label}</div>
+          <div className="text-[11px] text-content-primary">{label}</div>
         )}
       </div>
       <div className="flex min-h-7 items-center gap-2">{children}</div>
@@ -191,7 +200,7 @@ function SliderField({
         disabled={disabled}
         className="w-24"
       />
-      <span className="w-11 text-right font-mono text-[10px] tabular-nums text-slate-300">
+      <span className="w-11 text-right font-mono text-[10px] tabular-nums text-content-primary">
         {display}
       </span>
     </FieldRow>
@@ -300,11 +309,11 @@ function AxisConfigTab({
           <div>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="cursor-help text-[11px] text-slate-200 decoration-slate-500 decoration-dotted underline-offset-4 hover:underline">
+                <span className="cursor-help text-[11px] text-content-primary decoration-content-muted decoration-dotted underline-offset-4 hover:underline">
                   Botão virtual
                 </span>
               </TooltipTrigger>
-              <TooltipContent side="top" className="max-w-60 bg-hud-surface2 border-hud-border2 text-slate-200 text-xs">
+              <TooltipContent side="top" className="max-w-60 bg-hud-surface2 border-hud-border2 text-content-primary text-xs">
                 Ativa um botão HID quando o eixo cruza o limiar.
               </TooltipContent>
             </Tooltip>
@@ -319,7 +328,7 @@ function AxisConfigTab({
 
         <div className="grid grid-cols-2 items-start gap-3">
           <div>
-            <div className="mb-1 h-3 text-left text-[10px] leading-3 text-slate-500">Limiar botão</div>
+            <div className="mb-1 h-3 text-left text-[10px] leading-3 text-content-muted">Limiar botão</div>
             <div className="grid h-7 grid-cols-[1fr_auto] items-center gap-2">
               <Slider
                 min={0}
@@ -330,7 +339,7 @@ function AxisConfigTab({
                 disabled={disabled || !ax.axis_to_button.enabled}
                 className="flex-1"
               />
-              <span className="w-9 text-right font-mono text-[10px] tabular-nums text-slate-300">
+              <span className="w-9 text-right font-mono text-[10px] tabular-nums text-content-primary">
                 {(ax.axis_to_button.threshold_permille / 10).toFixed(0)}%
               </span>
             </div>
@@ -338,7 +347,7 @@ function AxisConfigTab({
 
           <div className="grid grid-cols-[1fr_0.55fr] items-start gap-2">
             <div>
-              <div className="mb-1 h-3 text-left text-[10px] leading-3 text-slate-500">Direção botão</div>
+              <div className="mb-1 h-3 text-left text-[10px] leading-3 text-content-muted">Direção botão</div>
               <Select
                 value={ax.axis_to_button.direction}
                 onValueChange={(value) =>
@@ -346,10 +355,10 @@ function AxisConfigTab({
                 }
                 disabled={disabled || !ax.axis_to_button.enabled}
               >
-                <SelectTrigger className="h-7 w-full bg-hud-surface2 border-hud-border2 font-mono text-[11px] text-slate-300 disabled:opacity-40">
+                <SelectTrigger className="h-7 w-full bg-hud-surface2 border-hud-border2 font-mono text-[11px] text-content-primary disabled:opacity-40">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-hud-surface2 border-hud-border2 text-slate-200">
+                <SelectContent className="bg-hud-surface2 border-hud-border2 text-content-primary">
                   <SelectItem value="Positive" className="font-mono text-xs">Positivo</SelectItem>
                   <SelectItem value="Negative" className="font-mono text-xs">Negativo</SelectItem>
                   <SelectItem value="Both" className="font-mono text-xs">Ambos</SelectItem>
@@ -358,7 +367,7 @@ function AxisConfigTab({
             </div>
 
             <div>
-              <div className="mb-1 h-3 text-left text-[10px] leading-3 text-slate-500">Botão</div>
+              <div className="mb-1 h-3 text-left text-[10px] leading-3 text-content-muted">Botão</div>
               <Input
                 type="number"
                 min={0}
@@ -369,7 +378,7 @@ function AxisConfigTab({
                   updateAxisToButton({ button_index: clampInt(Number(e.target.value), 0, 31) });
                 }}
                 disabled={disabled || !ax.axis_to_button.enabled}
-                className="h-7 w-full bg-hud-surface2 border-hud-border2 text-right font-mono text-[11px] text-slate-200 disabled:opacity-40"
+                className="h-7 w-full bg-hud-surface2 border-hud-border2 text-right font-mono text-[11px] text-content-primary disabled:opacity-40"
               />
             </div>
           </div>
@@ -412,7 +421,7 @@ export function AxesPage({ snapshot, deviceConfig }: Props) {
                       <TabsTrigger
                         key={axisId}
                         value={axisId}
-                        className="h-6 w-14 px-0 text-xs font-mono font-semibold data-[state=active]:text-slate-900"
+                        className="h-6 w-14 px-0 text-xs font-mono font-semibold data-[state=active]:text-content-inverse"
                         style={{ "--tw-ring-color": AXIS_COLORS[axisId] } as React.CSSProperties}
                       >
                         {axisId}
@@ -437,7 +446,7 @@ export function AxesPage({ snapshot, deviceConfig }: Props) {
                 : "bg-hud-surface2 border-hud-border2"
             )}>
               <AlertDescription className="flex items-center justify-between gap-3">
-                <span className={cn("text-xs", dirty ? "text-warn" : "text-slate-500")}>
+                <span className={cn("text-xs", dirty ? "text-warn" : "text-content-muted")}>
                   {dirty ? "Alterações não salvas no flash" : "Sem alterações pendentes"}
                 </span>
                 <div className="flex gap-2">
@@ -446,7 +455,7 @@ export function AxesPage({ snapshot, deviceConfig }: Props) {
                     variant="ghost"
                     onClick={reload}
                     disabled={!dirty || loading}
-                    className="h-7 text-xs text-slate-400 hover:text-slate-200 disabled:opacity-40"
+                    className="h-7 text-xs text-content-muted hover:text-content-primary disabled:opacity-40"
                   >
                     Descartar
                   </Button>

@@ -25,11 +25,11 @@ function ButtonCell({ index, pressed }: { index: number; pressed: boolean }) {
         "transition-colors duration-75 font-mono",
         pressed
           ? "bg-cyan-dim border-cyan/50 text-cyan shadow-[0_0_10px_var(--cyan-glow)]"
-          : "bg-hud-surface2 border-hud-border2 text-slate-600"
+          : "bg-hud-surface2 border-hud-border2 text-content-dim"
       )}
     >
       <span className="text-[11px] font-semibold">{index + 1}</span>
-      <span className={cn("h-1 w-1 rounded-full", pressed ? "bg-cyan" : "bg-slate-700")} />
+      <span className={cn("h-1 w-1 rounded-full", pressed ? "bg-cyan" : "bg-content-dim")} />
     </div>
   );
 }
@@ -40,8 +40,8 @@ function FieldRow({
   return (
     <div className="flex items-center justify-between border-b border-hud-border py-2.5 last:border-0">
       <div>
-        <div className="text-xs text-slate-200">{label}</div>
-        {sub && <div className="mt-0.5 text-[10px] text-slate-500">{sub}</div>}
+        <div className="text-xs text-content-primary">{label}</div>
+        {sub && <div className="mt-0.5 text-[10px] text-content-muted">{sub}</div>}
       </div>
       <div className="flex items-center gap-3">{children}</div>
     </div>
@@ -58,7 +58,7 @@ export function ButtonsPage({ snapshot, deviceConfig }: Props) {
       <div className="mx-auto flex h-full max-w-5xl flex-col">
         <Card className="bg-hud-surface border-hud-border2">
           <CardHeader className="px-4 pt-3 pb-2">
-            <CardTitle className="text-[11px] uppercase tracking-widest text-slate-500">
+            <CardTitle className="text-[11px] uppercase tracking-widest text-content-muted">
               Botões · 32 canais
             </CardTitle>
           </CardHeader>
@@ -73,7 +73,7 @@ export function ButtonsPage({ snapshot, deviceConfig }: Props) {
           </CardContent>
 
           <CardContent className="border-t border-hud-border px-4 pb-4 pt-3">
-            <div className="mb-2 text-[10px] uppercase tracking-widest text-slate-500">Configuração do botão</div>
+            <div className="mb-2 text-[10px] uppercase tracking-widest text-content-muted">Configuração do botão</div>
             <FieldRow label="Debounce">
               <Select
                 value={String(buttonConfig.debounce_ms)}
@@ -81,10 +81,10 @@ export function ButtonsPage({ snapshot, deviceConfig }: Props) {
                   deviceConfig.updateButtons({ debounce_ms: Number(value) })
                 }
               >
-                <SelectTrigger className="h-7 w-28 bg-hud-surface2 border-hud-border2 font-mono text-xs text-slate-300">
+                <SelectTrigger className="h-7 w-28 bg-hud-surface2 border-hud-border2 font-mono text-xs text-content-primary">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-hud-surface2 border-hud-border2 text-slate-200">
+                <SelectContent className="bg-hud-surface2 border-hud-border2 text-content-primary">
                   {[1, 2, 5, 10, 20].map((value) => (
                     <SelectItem key={value} value={String(value)} className="font-mono text-xs">
                       {value} ms
@@ -107,7 +107,7 @@ export function ButtonsPage({ snapshot, deviceConfig }: Props) {
                 : "bg-hud-surface2 border-hud-border2"
             )}>
               <AlertDescription className="flex items-center justify-between gap-3">
-                <span className={cn("text-xs", dirty ? "text-warn" : "text-slate-500")}>
+                <span className={cn("text-xs", dirty ? "text-warn" : "text-content-muted")}>
                   {dirty ? "Alterações não salvas no flash" : "Sem alterações pendentes"}
                 </span>
                 <div className="flex gap-2">
@@ -116,7 +116,7 @@ export function ButtonsPage({ snapshot, deviceConfig }: Props) {
                     variant="ghost"
                     onClick={reload}
                     disabled={!dirty || loading}
-                    className="h-7 text-xs text-slate-400 hover:text-slate-200 disabled:opacity-40"
+                    className="h-7 text-xs text-content-muted hover:text-content-primary disabled:opacity-40"
                   >
                     Descartar
                   </Button>

@@ -1,15 +1,18 @@
 import type { Preview } from "@storybook/react";
 import { TooltipProvider } from "../src/components/ui/tooltip";
+import { ThemeProvider } from "../src/theme/ThemeProvider";
 import "../src/index.css";
 
 const preview: Preview = {
   decorators: [
     (Story) => (
-      <TooltipProvider delayDuration={0}>
-        <div className="min-h-screen bg-hud-bg text-slate-200">
-          <Story />
-        </div>
-      </TooltipProvider>
+      <ThemeProvider>
+        <TooltipProvider delayDuration={0}>
+          <div className="min-h-screen bg-hud-bg text-content-primary">
+            <Story />
+          </div>
+        </TooltipProvider>
+      </ThemeProvider>
     ),
   ],
   parameters: {

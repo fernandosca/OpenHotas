@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { CANVAS_COLORS, HOTAS_COLORS } from "@/theme/colors";
+import { getThemeColor } from "@/theme/colors";
+import { useTheme } from "@/theme/ThemeProvider";
 import type { ResponseCurveData } from "@/types/protocol";
 
 type Point = [number, number];
@@ -11,12 +12,6 @@ interface Props {
   deadzonePermille: number;
   disabled?: boolean;
 }
-
-const CURVE_AXIS_COLORS: Record<0 | 1 | 2, string> = {
-  0: HOTAS_COLORS.axis.X,
-  1: HOTAS_COLORS.axis.Y,
-  2: HOTAS_COLORS.axis.Twist,
-};
 
 const PAD = 36;
 const CANVAS_HEIGHT = 220;
@@ -77,7 +72,7 @@ function buildResponseCurve(
 
 export function CurveEditor({ axisIndex, responseCurve, deadzonePermille, disabled = false }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
-  const color = CURVE_AXIS_COLORS[axisIndex];
+  const { theme } = useTheme();
 
   function dims() {
     const c = ref.current;
@@ -112,16 +107,23 @@ export function CurveEditor({ axisIndex, responseCurve, deadzonePermille, disabl
 
     const curve = buildResponseCurve(responseCurve, deadzonePermille);
     const deadzone = clamp(deadzonePermille / 1000, 0, 1);
+    const color = getThemeColor((["axisX", "axisY", "axisTwist"] as const)[axisIndex]);
+    const colors = {
+      surface: getThemeColor("surface"), grid: getThemeColor("grid"),
+      reference: getThemeColor("reference"), center: getThemeColor("center"),
+      label: getThemeColor("label"), danger: getThemeColor("danger"),
+      marker: getThemeColor("textPrimary"), disabled: getThemeColor("textDim"),
+    };
 
     ctx.clearRect(0, 0, W, H);
 
-    ctx.fillStyle = CANVAS_COLORS.hudBackground;
+    ctx.fillStyle = colors.surface;
     ctx.beginPath();
     if (ctx.roundRect) ctx.roundRect(0, 0, W, H, 8);
     else ctx.rect(0, 0, W, H);
     ctx.fill();
 
-    ctx.strokeStyle = CANVAS_COLORS.grid;
+    ctx.strokeStyle = colors.grid;
     ctx.lineWidth = 0.5;
     for (let i = 0; i <= 4; i++) {
       ctx.beginPath();
@@ -135,7 +137,7 @@ export function CurveEditor({ axisIndex, responseCurve, deadzonePermille, disabl
       ctx.stroke();
     }
 
-    ctx.strokeStyle = CANVAS_COLORS.diagonalReference;
+    ctx.strokeStyle = colors.reference;
     ctx.lineWidth = 0.5;
     ctx.setLineDash([4, 4]);
     ctx.beginPath();
@@ -147,10 +149,10 @@ export function CurveEditor({ axisIndex, responseCurve, deadzonePermille, disabl
     if (deadzone > 0) {
       const center = PAD + PW / 2;
       const halfWidth = deadzone * PW / 2;
-      ctx.fillStyle = CANVAS_COLORS.dangerFill;
+      ctx.fillStyle = colors.danger; ctx.globalAlpha = 0.05;
       ctx.fillRect(center - halfWidth, PAD, halfWidth * 2, PH);
 
-      ctx.strokeStyle = CANVAS_COLORS.dangerGuide;
+      ctx.globalAlpha = 0.2; ctx.strokeStyle = colors.danger;
       ctx.lineWidth = 0.5;
       ctx.setLineDash([3, 2]);
       ctx.beginPath();
@@ -162,9 +164,10 @@ export function CurveEditor({ axisIndex, responseCurve, deadzonePermille, disabl
       ctx.lineTo(center + halfWidth, PAD + PH);
       ctx.stroke();
       ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
     }
 
-    ctx.strokeStyle = CANVAS_COLORS.centerAxis;
+    ctx.strokeStyle = colors.center;
     ctx.lineWidth = 0.75;
     ctx.beginPath();
     ctx.moveTo(PAD, PAD + PH / 2);
@@ -175,11 +178,11 @@ export function CurveEditor({ axisIndex, responseCurve, deadzonePermille, disabl
     ctx.lineTo(PAD + PW / 2, PAD + PH);
     ctx.stroke();
 
-    ctx.strokeStyle = CANVAS_COLORS.subtleBorder;
+    ctx.strokeStyle = colors.reference;
     ctx.lineWidth = 1;
     ctx.strokeRect(PAD, PAD, PW, PH);
 
-    ctx.fillStyle = CANVAS_COLORS.label;
+    ctx.fillStyle = colors.label;
     ctx.font = "10px monospace";
     ctx.textAlign = "center";
     for (let i = 0; i <= 4; i++) {
@@ -203,7 +206,7 @@ export function CurveEditor({ axisIndex, responseCurve, deadzonePermille, disabl
       if (index === 0) ctx.moveTo(cx, cy);
       else ctx.lineTo(cx, cy);
     });
-    ctx.strokeStyle = disabled ? CANVAS_COLORS.label : color;
+    ctx.strokeStyle = disabled ? colors.label : color;
     ctx.lineWidth = 2;
     ctx.stroke();
 
@@ -216,7 +219,7 @@ export function CurveEditor({ axisIndex, responseCurve, deadzonePermille, disabl
     ctx.lineTo(PAD + PW, PAD + PH);
     ctx.lineTo(PAD, PAD + PH);
     ctx.closePath();
-    ctx.fillStyle = h2r(disabled ? "#64748b" : color, 0.07);
+    ctx.fillStyle = h2r(disabled ? colors.disabled : color, 0.07);
     ctx.fill();
 
     // Draw control points P1 and P3
@@ -235,12 +238,12 @@ export function CurveEditor({ axisIndex, responseCurve, deadzonePermille, disabl
         ctx.arc(cx, cy, 5, 0, Math.PI * 2);
         ctx.fillStyle = color;
         ctx.fill();
-        ctx.strokeStyle = "#fff";
+        ctx.strokeStyle = colors.marker;
         ctx.lineWidth = 1.5;
         ctx.stroke();
       }
     }
-  }, [axisIndex, color, disabled, responseCurve, deadzonePermille]);
+  }, [axisIndex, disabled, responseCurve, deadzonePermille, theme]);
 
   useEffect(() => {
     draw();
@@ -256,7 +259,7 @@ export function CurveEditor({ axisIndex, responseCurve, deadzonePermille, disabl
         aria-label="Visualização da curva de resposta"
       />
 
-      <div className="flex items-center justify-between gap-3 text-[10px] font-mono text-slate-500">
+      <div className="flex items-center justify-between gap-3 text-[10px] font-mono text-content-muted">
         <span>
           P1 ({responseCurve.point_left.x}, {responseCurve.point_left.y})
         </span>

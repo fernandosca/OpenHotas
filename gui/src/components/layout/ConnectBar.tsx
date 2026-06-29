@@ -50,18 +50,18 @@ export function ConnectBar({ connected }: Props) {
             <SelectTrigger className="
               h-8 flex-1 text-xs font-mono
               bg-hud-surface2 border-hud-border2
-              text-slate-300 focus:ring-cyan/30
+              text-content-primary focus:ring-cyan/30
             ">
               <SelectValue placeholder="Selecionar porta…" />
             </SelectTrigger>
-            <SelectContent className="bg-hud-surface2 border-hud-border2 text-slate-200">
+            <SelectContent className="bg-hud-surface2 border-hud-border2 text-content-primary">
               {ports.map((p) => (
                 <SelectItem key={p.name} value={p.name} className="text-xs font-mono focus:bg-cyan-dim focus:text-cyan">
                   {p.name}{p.description ? ` — ${p.description}` : ""}
                 </SelectItem>
               ))}
               {ports.length === 0 && (
-                <div className="px-2 py-1.5 text-xs text-slate-500">
+                <div className="px-2 py-1.5 text-xs text-content-muted">
                   Nenhuma porta encontrada
                 </div>
               )}
@@ -71,7 +71,7 @@ export function ConnectBar({ connected }: Props) {
           <Button
             size="sm"
             variant="outline"
-            className="h-8 text-xs px-3 bg-transparent border-hud-border2 text-slate-400 hover:text-slate-200 hover:bg-hud-surface2"
+            className="h-8 text-xs px-3 bg-transparent border-hud-border2 text-content-muted hover:text-content-primary hover:bg-hud-surface2"
             onClick={refresh}
           >
             ↻

@@ -27,15 +27,15 @@ type Story = StoryObj<typeof meta>;
 export const ConfirmFactoryReset: Story = {
   render: () => (
     <Dialog defaultOpen>
-      <DialogContent className="bg-hud-surface border-hud-border2 text-slate-200">
+      <DialogContent className="bg-hud-surface border-hud-border2 text-content-primary">
         <DialogHeader>
           <DialogTitle>Factory reset?</DialogTitle>
-          <DialogDescription className="text-slate-400">
+          <DialogDescription className="text-content-muted">
             Apaga configuração e calibração do flash. Esta ação não pode ser desfeita.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="ghost" className="text-slate-400">
+          <Button variant="ghost" className="text-content-muted">
             Cancelar
           </Button>
           <Button className="bg-danger/20 border border-danger/40 text-danger hover:bg-danger/30">

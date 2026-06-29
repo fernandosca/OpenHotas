@@ -37,8 +37,8 @@ function DisconnectedState() {
           !
         </div>
         <div>
-          <div className="text-sm font-medium text-slate-200">Conecte-se para iniciar</div>
-          <div className="mt-1 text-xs text-slate-500">Selecione uma porta para conectar</div>
+          <div className="text-sm font-medium text-content-primary">Conecte-se para iniciar</div>
+          <div className="mt-1 text-xs text-content-muted">Selecione uma porta para conectar</div>
         </div>
         <ConnectBar connected={false} />
       </div>
@@ -85,7 +85,7 @@ export default function App() {
                       "text-lg transition-all duration-150",
                       screen === id
                         ? "bg-cyan-dim text-cyan"
-                        : "text-slate-500 hover:bg-hud-surface2 hover:text-slate-300"
+                        : "text-content-muted hover:bg-hud-surface2 hover:text-content-primary"
                     )}
                   >
                     {/* Active indicator */}
@@ -95,7 +95,7 @@ export default function App() {
                     <span>{icon}</span>
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="right" className="bg-hud-surface2 border-hud-border2 text-slate-200 text-xs">
+                <TooltipContent side="right" className="bg-hud-surface2 border-hud-border2 text-content-primary text-xs">
                   {label}
                 </TooltipContent>
               </Tooltip>
@@ -115,7 +115,7 @@ export default function App() {
                   "relative mb-3 h-9 w-9 rounded-lg flex items-center justify-center text-base transition-all duration-150",
                   screen === "settings"
                     ? "bg-cyan-dim text-cyan"
-                    : "text-slate-500 hover:bg-hud-surface2 hover:text-slate-300"
+                    : "text-content-muted hover:bg-hud-surface2 hover:text-content-primary"
                 )}
               >
                 {screen === "settings" && (
@@ -124,7 +124,7 @@ export default function App() {
                 <SettingsIcon className="h-5 w-5" strokeWidth={1.8} />
               </button>
             </TooltipTrigger>
-            <TooltipContent side="right" className="bg-hud-surface2 border-hud-border2 text-slate-200 text-xs">
+            <TooltipContent side="right" className="bg-hud-surface2 border-hud-border2 text-content-primary text-xs">
               Configurações
             </TooltipContent>
           </Tooltip>
@@ -150,7 +150,7 @@ export default function App() {
                 )}
               </button>
             </TooltipTrigger>
-            <TooltipContent side="right" className="bg-hud-surface2 border-hud-border2 text-slate-200 text-xs">
+            <TooltipContent side="right" className="bg-hud-surface2 border-hud-border2 text-content-primary text-xs">
               {snapshot.connected ? "Conectado · clique para desconectar" : "Desconectado"}
             </TooltipContent>
           </Tooltip>

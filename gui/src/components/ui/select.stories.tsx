@@ -25,10 +25,10 @@ type Story = StoryObj<typeof meta>;
 export const Debounce: Story = {
   render: () => (
     <Select defaultValue="5">
-      <SelectTrigger className="bg-hud-surface2 border-hud-border2 text-slate-300">
+      <SelectTrigger className="bg-hud-surface2 border-hud-border2 text-content-primary">
         <SelectValue placeholder="Debounce" />
       </SelectTrigger>
-      <SelectContent className="bg-hud-surface2 border-hud-border2 text-slate-200">
+      <SelectContent className="bg-hud-surface2 border-hud-border2 text-content-primary">
         {[1, 2, 5, 10, 20].map((value) => (
           <SelectItem key={value} value={String(value)}>
             {value} ms

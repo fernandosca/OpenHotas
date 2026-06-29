@@ -20,7 +20,7 @@ export const States: Story = {
   render: () => (
     <div className="space-y-3">
       <Alert className="bg-hud-surface2 border-hud-border2">
-        <AlertDescription className="text-slate-300">
+        <AlertDescription className="text-content-primary">
           Sessão de calibração aberta.
         </AlertDescription>
       </Alert>

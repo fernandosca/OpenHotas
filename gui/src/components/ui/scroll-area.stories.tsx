@@ -22,7 +22,7 @@ export const ProtocolLog: Story = {
       <div className="space-y-1 pr-3 font-mono text-[10px]">
         {Array.from({ length: 24 }, (_, index) => (
           <div key={index} className="flex gap-2">
-            <span className="text-slate-600">12:{String(index).padStart(2, "0")}:04</span>
+            <span className="text-content-dim">12:{String(index).padStart(2, "0")}:04</span>
             <span className={index % 7 === 0 ? "text-warn" : "text-ok"}>
               {index % 7 === 0 ? "CRC sensor: 1" : "Ack recebido"}
             </span>

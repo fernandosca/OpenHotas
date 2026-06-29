@@ -82,7 +82,7 @@ export function Calibration({ snapshot, deviceConfig }: Props) {
         <CardContent className="p-4 space-y-4">
           <div className="grid grid-cols-2 items-end gap-3">
             <div>
-              <div className="mb-1 text-[10px] uppercase tracking-widest text-slate-500">Eixo</div>
+              <div className="mb-1 text-[10px] uppercase tracking-widest text-content-muted">Eixo</div>
               <Tabs value={axis} onValueChange={(v) => { setAxis(v as AxisId); cal.reset(); }}>
                 <TabsList className="bg-hud-surface2 border border-hud-border2 h-8">
                   {(["X", "Y", "Twist"] as AxisId[]).map((ax) => (
@@ -108,14 +108,14 @@ export function Calibration({ snapshot, deviceConfig }: Props) {
             </div>
 
             <div>
-              <div className="mb-1 text-[10px] uppercase tracking-widest text-slate-500">Status</div>
+              <div className="mb-1 text-[10px] uppercase tracking-widest text-content-muted">Status</div>
               <div className="flex">
                 <Badge
                   variant="outline"
                   className={cn(
                     "h-8 w-full justify-center text-[10px] font-mono",
                     cal.step === "complete" ? "border-ok/40 text-ok bg-ok/10" :
-                    cal.step === "idle"     ? "border-slate-600 text-slate-500" :
+                    cal.step === "idle"     ? "border-content-dim text-content-muted" :
                                               "border-warn/40 text-warn bg-warn/10"
                   )}
                 >
@@ -135,7 +135,7 @@ export function Calibration({ snapshot, deviceConfig }: Props) {
                     "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-mono border flex-shrink-0",
                     done   && "border-ok bg-ok/10 text-ok",
                     active && "border-cyan text-cyan bg-cyan-dim",
-                    !done && !active && "border-hud-border2 text-slate-600",
+                    !done && !active && "border-hud-border2 text-content-dim",
                   )}>
                     {done ? "✓" : i + 1}
                   </div>
@@ -151,7 +151,7 @@ export function Calibration({ snapshot, deviceConfig }: Props) {
           </div>
 
           <Alert className="bg-hud-surface2 border-hud-border2 py-2">
-            <AlertDescription className="text-center text-xs text-slate-300">
+            <AlertDescription className="text-center text-xs text-content-primary">
               {axisEnabled
                 ? instruction
                 : "Eixo desabilitado. Reative em Eixos para calibrar."}
@@ -174,13 +174,13 @@ export function Calibration({ snapshot, deviceConfig }: Props) {
                 )}>
                   <div className={cn(
                     "text-[10px] uppercase tracking-widest mb-1",
-                    isTarget ? "text-cyan" : "text-slate-500"
+                    isTarget ? "text-cyan" : "text-content-muted"
                   )}>
                     {["Mín", "Centro", "Máx"][i]}
                   </div>
                   <div className={cn(
                     "font-mono text-base font-semibold",
-                    val !== null ? "text-ok" : "text-slate-600"
+                    val !== null ? "text-ok" : "text-content-dim"
                   )}>
                     {val !== null ? val : "—"}
                   </div>
@@ -194,7 +194,7 @@ export function Calibration({ snapshot, deviceConfig }: Props) {
               <Button
                 variant="ghost"
                 onClick={() => setConfirmReset(true)}
-                className="justify-self-start text-xs h-8 text-slate-500 hover:text-danger hover:bg-danger/10"
+                className="justify-self-start text-xs h-8 text-content-muted hover:text-danger hover:bg-danger/10"
               >
                 Resetar
               </Button>
@@ -229,8 +229,8 @@ export function Calibration({ snapshot, deviceConfig }: Props) {
           )}
 
           <div className="border-t border-hud-border pt-3">
-            <div className="mb-3 text-center text-[10px] uppercase tracking-widest text-slate-500">Notas</div>
-            <ul className="grid grid-cols-3 gap-3 text-center text-[clamp(10px,1vw,12px)] text-slate-400">
+            <div className="mb-3 text-center text-[10px] uppercase tracking-widest text-content-muted">Notas</div>
+            <ul className="grid grid-cols-3 gap-3 text-center text-[clamp(10px,1vw,12px)] text-content-muted">
               <li className="flex min-w-0 justify-center gap-2 whitespace-nowrap"><span className="text-cyan">→</span> <span className="min-w-0">FinishCalibration aplica ao runtime</span></li>
               <li className="flex min-w-0 justify-center gap-2 whitespace-nowrap"><span className="text-warn">!</span> <span className="min-w-0">Não grava no flash automaticamente</span></li>
               <li className="flex min-w-0 justify-center gap-2 whitespace-nowrap"><span className="text-ok">✓</span> <span className="min-w-0">Salvar no flash para persistir</span></li>
@@ -241,15 +241,15 @@ export function Calibration({ snapshot, deviceConfig }: Props) {
 
       {/* Reset confirm dialog */}
       <Dialog open={confirmReset} onOpenChange={setConfirmReset}>
-        <DialogContent className="bg-hud-surface border-hud-border2 text-slate-200">
+        <DialogContent className="bg-hud-surface border-hud-border2 text-content-primary">
           <DialogHeader>
             <DialogTitle>Resetar calibração?</DialogTitle>
-            <DialogDescription className="text-slate-400">
+            <DialogDescription className="text-content-muted">
               O progresso atual será descartado. A calibração no firmware não será afetada.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setConfirmReset(false)} className="text-slate-400">
+            <Button variant="ghost" onClick={() => setConfirmReset(false)} className="text-content-muted">
               Cancelar
             </Button>
             <Button
