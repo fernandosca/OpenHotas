@@ -185,8 +185,6 @@ fn enable_miso_pullup(pin: u8) {
     });
 }
 
-
-
 /// Formata um byte (0..255) como dois hex ASCII em `dst[0..2]`.
 fn write_hex_byte(dst: &mut [u8], byte: u8) {
     const HEX: &[u8; 16] = b"0123456789ABCDEF";
