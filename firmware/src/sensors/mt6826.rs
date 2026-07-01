@@ -1,6 +1,6 @@
 use super::{Sensor, SensorError};
 use crate::constants::{
-    MT6826_ANGLE_MAX, MT6826_ANGLE_SHIFT, MT6826_CRC8_POLY, MT6826_CS_RELEASE_US,
+    MT6826_ANGLE_MAX, MT6826_ANGLE_SHIFT, MT6826_CRC8_POLY, MT6826_CS_HOLD_US, MT6826_CS_SETUP_US,
     MT6826_MAGNET_OK_MASK,
 };
 use crate::spi_bus;
@@ -55,22 +55,25 @@ impl<'d> Sensor for Mt6826<'d> {
     fn read(&mut self) -> Result<u16, SensorError> {
         spi_bus::with_spi1(|spi| {
             self.cs.set_low();
+            // Datasheet TL: CSN deve permanecer baixo por pelo menos 100 ns
+            // antes do primeiro falling edge de SCK.
+            block_for(Duration::from_micros(MT6826_CS_SETUP_US));
 
             let mut buf = [0xA0u8, 0x03, 0x00, 0x00, 0x00, 0x00];
             let transfer_result = spi
                 .blocking_transfer_in_place(&mut buf)
                 .map_err(|_| SensorError::SpiError);
 
+            // Datasheet TH: mantenha CSN baixo por pelo menos 0,5 * TSCK
+            // depois do ultimo rising edge. Em 1 MHz, use 1 us de margem.
+            block_for(Duration::from_micros(MT6826_CS_HOLD_US));
             self.cs.set_high();
-            // Os tres sensores compartilham MISO. Aguarde este dispositivo
-            // liberar a linha antes que o proximo CS possa ser selecionado.
-            block_for(Duration::from_micros(MT6826_CS_RELEASE_US));
             transfer_result?;
 
-            // A disconnected bus can float low and produce [0, 0, 0, 0].
-            // That pattern has a mathematically valid CRC, but it is not a
-            // trustworthy sensor response. Reject it before CRC validation.
-            if buf[2..=5].iter().all(|byte| *byte == 0) {
+            // O MISO possui pull-up. Um sensor ausente deixa os quatro bytes
+            // de resposta em 0xFF. Nao rejeite 0x00: angulo zero, status zero
+            // e CRC zero formam uma resposta valida segundo o datasheet.
+            if buf[2..=5].iter().all(|byte| *byte == 0xFF) {
                 self.error_count = self.error_count.saturating_add(1);
                 return Err(SensorError::NotPresent);
             }

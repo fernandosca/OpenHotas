@@ -149,7 +149,7 @@ cargo clippy --target thumbv8m.main-none-eabihf
 probe-rs run --chip RP2350 target/thumbv8m.main-none-eabihf/release/openhotas
 
 # Gerar UF2
-elf2uf2-rs target/thumbv8m.main-none-eabihf/release/openhotas openhotas.uf2
+picotool uf2 convert target/thumbv8m.main-none-eabihf/release/openhotas -t elf openhotas.uf2 -t uf2 --abs-block
 
 # Tamanho do binário
 cargo size --release --target thumbv8m.main-none-eabihf -- -A

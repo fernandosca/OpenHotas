@@ -74,9 +74,10 @@ rustup target add thumbv8m.main-none-eabihf
 Optional tools:
 
 ```bash
-cargo install elf2uf2-rs
 cargo install probe-rs-tools
 ```
+
+Install the official Raspberry Pi `picotool` 2.1 or newer for UF2 conversion.
 
 ---
 
@@ -101,9 +102,9 @@ target/thumbv8m.main-none-eabihf/release/
 To generate a UF2 file for USB bootloader flashing:
 
 ```bash
-elf2uf2-rs \
+picotool uf2 convert \
   target/thumbv8m.main-none-eabihf/release/openhotas \
-  openhotas.uf2
+  -t elf openhotas.uf2 -t uf2 --abs-block
 ```
 
 ---

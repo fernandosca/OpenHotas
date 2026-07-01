@@ -39,10 +39,17 @@ pub const MT6826_SPI_FREQ_HZ: u32 = 1_000_000;
 
 pub const MT6826_SPI_MODE: u8 = 3;
 
-/// Tempo morto apos CSN subir antes de outro sensor usar o MISO compartilhado.
-/// O datasheet nao exige uma espera em microssegundos; 2 us fornece margem
-/// conservadora para propagacao na fiacao sem afetar o ciclo de 500 us.
-pub const MT6826_CS_RELEASE_US: u64 = 2;
+/// Tempo entre CSN baixo e o primeiro clock.
+/// Datasheet: TL >= 100 ns. Um microssegundo fornece margem ampla.
+pub const MT6826_CS_SETUP_US: u64 = 1;
+
+/// Tempo entre o ultimo rising edge de SCK e CSN alto.
+/// Datasheet: TH >= 0,5 * TSCK. Em 1 MHz, TH >= 0,5 us; use 1 us de margem.
+pub const MT6826_CS_HOLD_US: u64 = 1;
+
+/// Tempo de inicializacao do MT6826S apos energizacao.
+/// Datasheet: TPwrUp tipico de 3 ms. Use margem antes da primeira leitura.
+pub const MT6826_POWER_UP_MS: u64 = 5;
 
 /// Comando de leitura de angulo — Burst Angle Read (datasheet §8.6.8)
 /// Frame de comando: C3-C0 = 1010 (0x0A)

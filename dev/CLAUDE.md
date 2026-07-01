@@ -148,7 +148,7 @@ cargo run --release
 
 ```bash
 cd firmware
-elf2uf2-rs target/thumbv8m.main-none-eabihf/release/openhotas out.uf2
+picotool uf2 convert target/thumbv8m.main-none-eabihf/release/openhotas -t elf out.uf2 -t uf2 --abs-block
 ```
 
 ---

@@ -506,7 +506,7 @@ cargo clippy --target thumbv8m.main-none-eabihf   # lint (zero-warnings)
 cargo fmt --check                                  # verificar formatação
 cargo fmt                                          # formatar
 cargo run --release                                # flash via probe-rs
-elf2uf2-rs target/.../release/openhotas out.uf2   # gerar UF2
+picotool uf2 convert target/.../release/openhotas -t elf out.uf2 -t uf2 --abs-block
 ```
 
 ## Gate de qualidade antes de flashar
