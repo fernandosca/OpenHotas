@@ -2,11 +2,11 @@ pub const HID_REPORT_DESCRIPTOR: &[u8] = &[
     0x05, 0x01, // Usage Page (Generic Desktop)
     0x09, 0x05, // Usage (Gamepad)
     0xA1, 0x01, // Collection (Application)
-    // Eixos X, Y, Rz (Twist) — 3x signed i16
+    // Eixos X, Y, Rx (Twist) — 3x signed i16
     // Report ID removido: V1.22 só tem 1 report HID — não necessário
     0x09, 0x30, // Usage (X)
     0x09, 0x31, // Usage (Y)
-    0x09, 0x35, // Usage (Rz)
+    0x09, 0x33, // Usage (Rx)
     0x16, 0x01, 0x80, // Logical Minimum (-32767) — eixos assinados
     0x26, 0xFF, 0x7F, // Logical Maximum (32767)
     0x36, 0x01, 0x80, // Physical Minimum (-32767) — pré-calibrado, sem range oculto
