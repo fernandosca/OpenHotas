@@ -38,16 +38,6 @@ pub fn version_to_bytes(s: &str) -> [u8; 8] {
     buf
 }
 
-fn axis_unhealthy(axis: AxisId) -> bool {
-    let unhealthy = runtime_stats::SENSOR_UNHEALTHY.load(Ordering::Relaxed);
-    let mask = match axis {
-        AxisId::X => 0x01,
-        AxisId::Y => 0x02,
-        AxisId::Twist => 0x04,
-    };
-    unhealthy & mask != 0
-}
-
 // ── Read-Only Handler ────────────────────────────────────────────────────
 
 pub fn handle_read_request(req: &Request, active_config: &DeviceConfig) -> Response {
@@ -197,14 +187,26 @@ pub fn handle_calibration_request(
                 Some(s) if s.axis == *axis => s,
                 _ => return Response::Error(ProtocolError::CalibrationError),
             };
-            if axis_unhealthy(*axis) {
+            // Snapshot atômico: lê saúde + raw no mesmo critical_section
+            // para garantir que ambos são do mesmo ciclo do input_task.
+            let (healthy, raw) = critical_section::with(|_| {
+                let unhealthy = runtime_stats::SENSOR_UNHEALTHY.load(Ordering::Relaxed);
+                let mask = match axis {
+                    AxisId::X => 0x01,
+                    AxisId::Y => 0x02,
+                    AxisId::Twist => 0x04,
+                };
+                let healthy = unhealthy & mask == 0;
+                let raw = match axis {
+                    AxisId::X => runtime_stats::RAW_AXIS_X.load(Ordering::Relaxed) as u16,
+                    AxisId::Y => runtime_stats::RAW_AXIS_Y.load(Ordering::Relaxed) as u16,
+                    AxisId::Twist => runtime_stats::RAW_AXIS_TWIST.load(Ordering::Relaxed) as u16,
+                };
+                (healthy, raw)
+            });
+            if !healthy {
                 return Response::Error(ProtocolError::CalibrationError);
             }
-            let raw = match axis {
-                AxisId::X => runtime_stats::RAW_AXIS_X.load(Ordering::Relaxed) as u16,
-                AxisId::Y => runtime_stats::RAW_AXIS_Y.load(Ordering::Relaxed) as u16,
-                AxisId::Twist => runtime_stats::RAW_AXIS_TWIST.load(Ordering::Relaxed) as u16,
-            };
             if raw > MT6826_ANGLE_MAX {
                 return Response::Error(ProtocolError::CalibrationError);
             }

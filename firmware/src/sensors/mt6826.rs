@@ -1,7 +1,7 @@
 use super::{Sensor, SensorError};
 use crate::constants::{
-    MT6826_ANGLE_MAX, MT6826_ANGLE_SHIFT, MT6826_CRC8_POLY, MT6826_CS_HOLD_US, MT6826_CS_SETUP_US,
-    MT6826_MAGNET_OK_MASK,
+    MT6826_ANGLE_MAX, MT6826_ANGLE_SHIFT, MT6826_CMD_READ_ANGLE, MT6826_CRC8_POLY,
+    MT6826_CS_HOLD_US, MT6826_CS_SETUP_US, MT6826_MAGNET_OK_MASK,
 };
 use crate::spi_bus;
 use embassy_rp::gpio::Output;
@@ -59,7 +59,7 @@ impl<'d> Sensor for Mt6826<'d> {
             // antes do primeiro falling edge de SCK.
             block_for(Duration::from_micros(MT6826_CS_SETUP_US));
 
-            let mut buf = [0xA0u8, 0x03, 0x00, 0x00, 0x00, 0x00];
+            let mut buf = [MT6826_CMD_READ_ANGLE << 4, 0x03, 0x00, 0x00, 0x00, 0x00];
             let transfer_result = spi
                 .blocking_transfer_in_place(&mut buf)
                 .map_err(|_| SensorError::SpiError);

@@ -5,6 +5,9 @@ use embassy_sync::signal::Signal;
 
 pub type UsbDriver = embassy_rp::usb::Driver<'static, embassy_rp::peripherals::USB>;
 
+/// # Safety
+/// `v` é clampado em [-1.0, 1.0] antes desta chamada, então o cast `as i16`
+/// é seguro: o resultado está sempre em [-32767, +32767].
 pub fn axis_to_i16(v: f32) -> i16 {
     (v.clamp(-1.0, 1.0) * HID_AXIS_MAX as f32) as i16
 }

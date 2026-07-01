@@ -61,6 +61,11 @@ pub fn record_cycle(us: u32) {
     }
 }
 
+/// Reset MAX_CYCLE_US and return the peak value from the previous window.
+pub fn reset_max_cycle() -> u32 {
+    MAX_CYCLE_US.swap(0, Ordering::Relaxed)
+}
+
 pub fn log_stats() {
     let sent = REPORTS_SENT.load(Ordering::Relaxed);
     let errs = SEND_ERRORS.load(Ordering::Relaxed);
