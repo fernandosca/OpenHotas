@@ -103,12 +103,11 @@ pub const FLASH_SIZE: u32 = 2 * 1024 * 1024;
 pub const SECTOR_SIZE: u32 = 4096;
 
 /// V1.23: StoredConfigV2 — fonte oficial de config + calibração.
-/// Último setor da flash (0x001FF000).
-pub const STORED_V2_OFFSET: u32 = FLASH_SIZE - SECTOR_SIZE;
+/// Double-buffer: dois setores para power-fail safety.
+pub const STORED_V2_SLOT_A: u32 = FLASH_SIZE - SECTOR_SIZE;
+pub const STORED_V2_SLOT_B: u32 = FLASH_SIZE - 2 * SECTOR_SIZE;
 
 // ── USB HID ──────────────────────────────────────────────────────────────
-
-pub const REPORT_ID_GAMEPAD: u8 = 0x01;
 
 pub const REPORT_SIZE: usize = 10;
 

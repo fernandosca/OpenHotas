@@ -369,6 +369,100 @@ Fmt    : PASS
 
 ---
 
+## 15. Correções de Robustez — Análise Firmware (1/Jul/2026)
+
+### Contexto
+
+Revisão completa do firmware por 3 subagentes identificou 5 issues importantes
+e 5 menores. Todos foram implementados na branch `fix/all-analysis-issues`,
+exceto I-1 (migração static mut → StaticCell).
+
+### Issues Implementados
+
+| Issue | Prioridade | Arquivo | Solução |
+|-------|-----------|---------|---------|
+| **I-2** | 1 | `config/stored_config_v2.rs` | Double-buffer com geração + CRC32 para power-fail safety |
+| **I-5** | 2 | `tasks/cdc.rs` | Compile-time assertion para frame_buf |
+| **I-4** | 3 | `tasks/cdc_handlers.rs` | Snapshot atômico com critical_section na calibração |
+| **I-3** | 5 | `diagnostics/runtime_stats.rs` | reset_max_cycle() em janela deslizante |
+| **M-5** | — | `sensors/mt6826.rs` | Constante MT6826_CMD_READ_ANGLE em vez de 0xA0 |
+| **M-1** | — | `constants.rs` | Removida constante morta REPORT_ID_GAMEPAD |
+| **M-2** | — | `usb/hid_gamepad.rs` | Safety comment em axis_to_i16 |
+| **M-4** | — | `tasks/input.rs` | as_micros() truncation protegido |
+
+### Detalhes por Issue
+
+#### I-2: Double-Buffer para save_config
+
+Solução de power-fail safety com dois setores flash:
+
+```text
+Layout por slot:
+Offset  Size  Field
+0       4     MAGIC = "OCFG"
+4       4     GENERATION (u32 LE)
+8       1     STORAGE_VERSION = 2
+9       1     PROTOCOL_MAJOR
+10      1     PROTOCOL_MINOR
+11      2     PAYLOAD_LEN u16 BE
+13      N     PAYLOAD = postcard(DeviceConfig)
+13+N    4     CRC32
+```
+
+- **Boot:** Lê ambos os slots, valida CRC, usa o de maior geração
+- **Save:** Escreve no slot inativo com geração = atual + 1
+- **Garantia:** Nunca há janela onde ambos os slots são inválidos
+
+#### I-5: Compile-Time Assertion
+
+```rust
+const _: () = assert!(
+    4 + MAX_PAYLOAD_SIZE + 2 <= 300,
+    "frame_buf overflow: MAX_PAYLOAD_SIZE muito grande"
+);
+```
+
+Adicionado em `cdc.rs` antes da definição de `frame_buf`.
+
+#### I-4: Snapshot Atômico na Calibração
+
+Leituras de `SENSOR_UNHEALTHY` e `RAW_AXIS_*` envolvidas em
+`critical_section::with(|_| { ... })` para garantir consistência
+de ciclo no momento da captura de calibração.
+
+#### I-3: Reset de MAX_CYCLE_US
+
+Nova função `reset_max_cycle()` retorna o pico da janela anterior
+e reseta o contador. Chamada pelo `diagnostic_task` a cada 5s.
+
+### Issue Bloqueado
+
+| Issue | Razão |
+|-------|-------|
+| **I-1** | Requer adição de crate `static-cell` e refatoração dos 7 `static mut` em `main.rs` |
+
+### Arquivos Alterados
+
+1. `firmware/src/config/stored_config_v2.rs` — Double-buffer reescrito
+2. `firmware/src/constants.rs` — Constantes STORED_V2_SLOT_A/B, removida REPORT_ID_GAMEPAD
+3. `firmware/src/tasks/cdc.rs` — Compile-time assertion
+4. `firmware/src/tasks/cdc_handlers.rs` — critical_section na calibração
+5. `firmware/src/tasks/diagnostic.rs` — Chamada a reset_max_cycle()
+6. `firmware/src/tasks/input.rs` — Proteção contra truncation
+7. `firmware/src/sensors/mt6826.rs` — Constante em vez de magic number
+8. `firmware/src/usb/hid_gamepad.rs` — Safety comment
+9. `firmware/src/diagnostics/runtime_stats.rs` — Função reset_max_cycle()
+
+### Gate de Qualidade
+
+```text
+Build  : PASS
+Clippy : PASS (zero warnings)
+Fmt    : PASS
+```
+
+---
+
 *OpenHOTAS · V1.3.0 Build Log · Jun/Jul 2026*
 
 ## 8. Crate `openhotas-filters` — Extração de Lógica Pura (Jun/2026)

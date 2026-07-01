@@ -205,7 +205,7 @@ pub async fn input_task(
             buttons,
         });
 
-        runtime_stats::record_cycle(start.elapsed().as_micros() as u32);
+        runtime_stats::record_cycle(start.elapsed().as_micros().min(u64::from(u32::MAX)) as u32);
         ticker.next().await;
     }
 }

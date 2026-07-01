@@ -145,6 +145,10 @@ pub async fn cdc_task(
     let mut pending_reboot: bool = false;
     let mut parser = FrameParser::new();
     let mut read_buf = [0u8; 64];
+    const _: () = assert!(
+        4 + MAX_PAYLOAD_SIZE + 2 <= 300,
+        "frame_buf overflow: MAX_PAYLOAD_SIZE muito grande"
+    );
     let mut frame_buf = [0u8; 300];
 
     loop {
