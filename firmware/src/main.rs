@@ -20,7 +20,7 @@ use embassy_rp::gpio::{Level, Output};
 use embassy_rp::otp;
 use embassy_rp::spi::{Config as SpiConfig, Phase, Polarity, Spi};
 use embassy_rp::usb::Driver;
-use embassy_usb::class::cdc_acm::{CdcAcmClass, State as CdcState};
+use embassy_usb::class::cdc_acm::CdcAcmClass;
 use embassy_usb::class::hid::{Config as HidConfig, HidReaderWriter};
 use embassy_usb::{Builder, Config as UsbConfig};
 use {defmt_rtt as _, panic_probe as _};
@@ -38,14 +38,20 @@ embassy_rp::bind_interrupts!(struct Irqs {
     USBCTRL_IRQ => embassy_rp::usb::InterruptHandler<embassy_rp::peripherals::USB>;
 });
 
-static mut DD: [u8; 256] = [0u8; 256];
-static mut CD: [u8; 256] = [0u8; 256];
-static mut BD: [u8; 256] = [0u8; 256];
-static mut CB: [u8; 64] = [0u8; 64];
-static mut HS: Option<embassy_usb::class::hid::State<'static>> = None;
+use static_cell::StaticCell;
+
+static DD: StaticCell<[u8; 256]> = StaticCell::new();
+static CD: StaticCell<[u8; 256]> = StaticCell::new();
+static BD: StaticCell<[u8; 256]> = StaticCell::new();
+static CB: StaticCell<[u8; 64]> = StaticCell::new();
+static HS: StaticCell<embassy_usb::class::hid::State<'static>> = StaticCell::new();
 /// CDC state for binary protocol (V1.22).
-/// Pattern identical to HID State — transmute from local scope to 'static.
-static mut CDC_STATE: Option<CdcState> = None;
+/// No transmute needed — StaticCell provides &'static mut directly.
+static CDC_STATE: StaticCell<embassy_usb::class::cdc_acm::State<'static>> = StaticCell::new();
+/// Buffer estático (no_heap) que guarda o serial USB formatado.
+/// O Builder do embassy-usb exige `&'static str` para os descritores, então o
+/// unique ID da flash é formatado aqui uma única vez no boot.
+static SERIAL_STR: StaticCell<[u8; 18]> = StaticCell::new();
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
@@ -78,7 +84,7 @@ async fn main(spawner: Spawner) {
 
     // Serial único por placa: lido de OTP (chip ID 64-bit).
     // O Builder exige &'static str, então o serial é gravado num static (no_heap).
-    let serial = unsafe { chip_id_serial_static() };
+    let serial = chip_id_serial_static();
 
     let mut spi0_cfg = SpiConfig::default();
     spi0_cfg.frequency = 1_000_000;
@@ -129,21 +135,14 @@ async fn main(spawner: Spawner) {
         .parse::<u16>()
         .unwrap_or(0x0100);
 
-    // Transmute: Converter lifetime local de HID State para 'static.
-    // Sound: estado USB vive pela execução inteira, never-drop pattern.
-    let hs = embassy_usb::class::hid::State::new();
-    unsafe {
-        HS = Some(core::mem::transmute(hs));
-    }
+    // StaticCell: inicializa no boot, fornece &'static mut sem transmute.
+    let hs = HS.init(embassy_usb::class::hid::State::new());
+    let dd = DD.init([0u8; 256]);
+    let cd = CD.init([0u8; 256]);
+    let bd = BD.init([0u8; 256]);
+    let cb = CB.init([0u8; 64]);
 
-    let mut builder = Builder::new(
-        driver,
-        usb_cfg,
-        unsafe { &mut *core::ptr::addr_of_mut!(DD) },
-        unsafe { &mut *core::ptr::addr_of_mut!(CD) },
-        unsafe { &mut *core::ptr::addr_of_mut!(BD) },
-        unsafe { &mut *core::ptr::addr_of_mut!(CB) },
-    );
+    let mut builder = Builder::new(driver, usb_cfg, dd, cd, bd, cb);
 
     let hid_cfg = HidConfig {
         report_descriptor: HID_REPORT_DESCRIPTOR,
@@ -156,33 +155,12 @@ async fn main(spawner: Spawner) {
         embassy_rp::usb::Driver<'_, embassy_rp::peripherals::USB>,
         64,
         64,
-    > = HidReaderWriter::new(
-        &mut builder,
-        #[allow(static_mut_refs)]
-        unsafe {
-            HS.as_mut().unwrap()
-        },
-        hid_cfg,
-    );
+    > = HidReaderWriter::new(&mut builder, hs, hid_cfg);
 
     // CDC for binary protocol (V1.22)
-    // Same transmute pattern as HID State — required because
-    // CdcAcmClass::new() demands builder and state share the same
-    // lifetime, but builder is local while state needs to be 'static.
-    // Transmute: Converter lifetime local de CdcState para 'static.
-    // Sound: mesmo padrão do HID State — never-drop, single-core.
-    let cdc_state = CdcState::new();
-    unsafe {
-        CDC_STATE = Some(core::mem::transmute(cdc_state));
-    }
-    let cdc = CdcAcmClass::new(
-        &mut builder,
-        #[allow(static_mut_refs)]
-        unsafe {
-            CDC_STATE.as_mut().unwrap()
-        },
-        64,
-    );
+    // StaticCell: &'static mut sem transmute.
+    let cdc_state = CDC_STATE.init(embassy_usb::class::cdc_acm::State::new());
+    let cdc = CdcAcmClass::new(&mut builder, cdc_state, 64);
 
     let usb = builder.build();
     let (_reader, writer) = hid.split();
@@ -207,10 +185,7 @@ fn enable_miso_pullup(pin: u8) {
     });
 }
 
-/// Buffer estático (no_heap) que guarda o serial USB formatado.
-/// O Builder do embassy-usb exige `&'static str` para os descritores, então o
-/// unique ID da flash é formatado aqui uma única vez no boot.
-static mut SERIAL_STR: [u8; 18] = [0u8; 18];
+
 
 /// Formata um byte (0..255) como dois hex ASCII em `dst[0..2]`.
 fn write_hex_byte(dst: &mut [u8], byte: u8) {
@@ -220,7 +195,7 @@ fn write_hex_byte(dst: &mut [u8], byte: u8) {
 }
 
 /// Lê o chip ID de OTP (64 bits, rows 0x0-0x3), formata como serial USB
-/// único e grava no static `SERIAL_STR`, retornando um `&'static str`.
+/// único e retorna um `&'static str`.
 ///
 /// Cada placa tem um chip ID distinto gravado em OTP durante fabricação,
 /// então dois sticks OpenHOTAS no mesmo host não colidem na enumeração USB.
@@ -230,29 +205,25 @@ fn write_hex_byte(dst: &mut [u8], byte: u8) {
 /// condição passam a compartilhar o mesmo serial, então o configurador deve
 /// alertar o usuário ao encontrar o serial de fallback.
 ///
-/// # Safety
-/// - Escreve em `SERIAL_STR` no boot, antes do spawn de qualquer task e fora
-///   de ISR — sem concorrência (single-core, single-thread até aqui).
-unsafe fn chip_id_serial_static() -> &'static str {
-    // Fallback: serial fixo quando a OTP está ilegível. Todos os sticks em
-    // degradação compartilham este serial — o configurador deve alertar.
+/// Usa `StaticCell` para alocar o buffer no heap-less firmware — sem `unsafe`
+/// além do `from_utf8_unchecked` que é seguro pelo invariante local (ASCII hex).
+fn chip_id_serial_static() -> &'static str {
+    // Inicializa o buffer via StaticCell (uma vez no boot).
+    // Retorna &'static mut [u8; 18] — sem unsafe.
+    let buf: &'static mut [u8; 18] = SERIAL_STR.init([0u8; 18]);
+
     let chip_id = otp::get_chipid().unwrap_or_else(|_| {
         defmt::warn!("OTP chip ID unavailable, using fallback serial");
         0u64
     });
 
-    // Formatar no buffer local (safe)
-    let mut buf = [0u8; 18];
+    // Formata o serial diretamente no buffer estático
     buf[0] = b'O';
     buf[1] = b'H';
     for (i, byte) in chip_id.to_be_bytes().iter().enumerate() {
         write_hex_byte(&mut buf[2 + i * 2..4 + i * 2], *byte);
     }
 
-    // Copia para o static e retorna &'static str.
-    // Safety: o static existe, tem tamanho conhecido (18 bytes), estamos no boot
-    // single-core antes de qualquer spawn — sem concorrência possível.
-    let static_ptr = core::ptr::addr_of_mut!(SERIAL_STR);
-    core::ptr::copy_nonoverlapping(buf.as_ptr(), static_ptr as *mut u8, 18);
-    core::str::from_utf8_unchecked(core::slice::from_raw_parts(static_ptr as *const u8, 18))
+    // Safety: buf contém apenas 'O', 'H' e hex ASCII (0-9, A-F) — UTF-8 válido.
+    unsafe { core::str::from_utf8_unchecked(&buf[..18]) }
 }

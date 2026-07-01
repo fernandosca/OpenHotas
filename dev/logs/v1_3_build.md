@@ -463,6 +463,76 @@ Fmt    : PASS
 
 ---
 
+## 16. Migração `static mut` → `StaticCell` (1/Jul/2026)
+
+### Contexto
+
+O roadmap de análise do firmware (`dev/roadmap/analise-firmware-openhotas-v2.md`) 
+manteve o **I-1** como bloqueado desde a revisão de 1/Jul/2026, aguardando a 
+migração de 7 variáveis `static mut` para `StaticCell`, necessária para 
+compatibilidade com Rust 2024.
+
+### O que era
+
+```rust
+// main.rs — 7 variáveis static mut
+static mut DD: [u8; 256] = [0u8; 256];
+static mut CD: [u8; 256] = [0u8; 256];
+static mut BD: [u8; 256] = [0u8; 256];
+static mut CB: [u8; 64] = [0u8; 64];
+static mut HS: Option<embassy_usb::class::hid::State<'static>> = None;
+static mut CDC_STATE: Option<CdcState> = None;
+static mut SERIAL_STR: [u8; 18] = [0u8; 18];
+```
+
+Cada acesso exigia `unsafe { addr_of_mut!(...) }` ou `transmute` com 
+`#[allow(static_mut_refs)]`.
+
+### O que foi feito
+
+Migração para `StaticCell` da crate `static_cell = "2.1.1"`:
+
+```rust
+use static_cell::StaticCell;
+
+static DD: StaticCell<[u8; 256]> = StaticCell::new();
+static CD: StaticCell<[u8; 256]> = StaticCell::new();
+static BD: StaticCell<[u8; 256]> = StaticCell::new();
+static CB: StaticCell<[u8; 64]> = StaticCell::new();
+static HS: StaticCell<embassy_usb::class::hid::State<'static>> = StaticCell::new();
+static CDC_STATE: StaticCell<embassy_usb::class::cdc_acm::State<'static>> = StaticCell::new();
+static SERIAL_STR: StaticCell<[u8; 18]> = StaticCell::new();
+```
+
+### Padrões removidos
+
+| Padrão Antigo | Substituído por |
+|---------------|----------------|
+| `unsafe { HS = Some(core::mem::transmute(hs)) }` | `HS.init(State::new())` |
+| `unsafe { &mut *core::ptr::addr_of_mut!(DD) }` | `DD.init([0u8; 256])` |
+| `unsafe { CDC_STATE = Some(core::mem::transmute(...)) }` | `CDC_STATE.init(State::new())` |
+| `#[allow(static_mut_refs)]` (3 ocorrências) | Removido |
+| `unsafe fn chip_id_serial_static()` | `fn chip_id_serial_static()` (safe) |
+| `copy_nonoverlapping` + `addr_of_mut!(SERIAL_STR)` | `SERIAL_STR.init([0u8; 18])` + write direto |
+
+### Arquivos alterados
+
+| Arquivo | Mudança |
+|---------|---------|
+| `firmware/Cargo.toml` | `+ static_cell = "2.1.1"` |
+| `firmware/src/main.rs` | 7 `static mut` → 7 `StaticCell`, sem unsafe nos acessos |
+| `dev/roadmap/analise-firmware-openhotas-v2.md` | I-1 marcado ✅, seção pendente removida |
+
+### Gate de Qualidade Planejado
+
+```text
+Build  : PENDING (verificar com cargo build --release)
+Clippy : PENDING
+Fmt    : PENDING
+```
+
+---
+
 *OpenHOTAS · V1.3.0 Build Log · Jun/Jul 2026*
 
 ## 8. Crate `openhotas-filters` — Extração de Lógica Pura (Jun/2026)
