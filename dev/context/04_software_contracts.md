@@ -296,18 +296,30 @@ Se qualquer verificação falhar → usar `Default::default()`. Nunca usar dados
 
 ## 8. USB — Estrutura de Buffers
 
-Os buffers do `UsbBuilder` são `static mut` em `main.rs` — exigência de
-lifetime `'static` do `embassy-usb 0.5`.
+Os buffers do `UsbBuilder` usam `StaticCell` em `main.rs` — exigência de
+lifetime `'static` do `embassy-usb 0.5`, sem `unsafe`.
 
 ```rust
-// Declaração global em main.rs
-static mut DD: [u8; 256] = [0u8; 256]; // device descriptor
-static mut CD: [u8; 256] = [0u8; 256]; // config descriptor
-static mut BD: [u8; 256] = [0u8; 256]; // bos descriptor
-static mut CB: [u8; 64]  = [0u8; 64];  // control buf
-static mut HS: Option<embassy_usb::class::hid::State<'static>> = None;
+// Declaração global em main.rs (V1.3+)
+use static_cell::StaticCell;
+
+static DD: StaticCell<[u8; 256]> = StaticCell::new(); // device descriptor
+static CD: StaticCell<[u8; 256]> = StaticCell::new(); // config descriptor
+static BD: StaticCell<[u8; 256]> = StaticCell::new(); // bos descriptor
+static CB: StaticCell<[u8; 64]>  = StaticCell::new(); // control buf
+static HS: StaticCell<embassy_usb::class::hid::State<'static>> = StaticCell::new();
 /// CDC state para protocolo binário (V1.22).
-static mut CDC_STATE: Option<CdcState> = None;
+static CDC_STATE: StaticCell<embassy_usb::class::cdc_acm::State<'static>> = StaticCell::new();
+static SERIAL_STR: StaticCell<[u8; 18]> = StaticCell::new();
+```
+
+Inicialização em `main()`:
+
+```rust
+let hs = HS.init(embassy_usb::class::hid::State::new());
+let dd = DD.init([0u8; 256]);
+// ...
+let mut builder = Builder::new(driver, usb_cfg, dd, cd, bd, cb);
 ```
 
 Estes buffers **nunca** são alocados em stack ou heap.

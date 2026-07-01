@@ -58,7 +58,7 @@ sem monopolizar o executor Embassy.
 
 **`main.rs` é restrito a:**
 - Inicialização de hardware (SPI, GPIO, Flash, USB)
-- Declaração de buffers `static mut`
+- Declaração de buffers `StaticCell`
 - `spawner.spawn(...)` das 5 tasks
 
 Toda lógica operacional reside em `src/tasks/`. Meta: ~120 linhas em `main.rs`.
@@ -176,11 +176,13 @@ para multicore (SMP), precisam ser refatorados.
 | Padrão | Onde | Condição de segurança |
 |---|---|---|
 | `Mutex<CriticalSectionRawMutex, RefCell<Option<...>>>` para SPI | `spi_bus.rs` | Single-core, sem DMA concorrente |
-| `static mut` + `critical_section` para Flash | `storage/flash.rs` | Single-core, nunca em ISR |
-| `transmute` de lifetimes locais → `'static` | `main.rs` | Inicialização única, single-core, documentado |
+| `transmute` de lifetimes locais → `'static` (periféricos) | `main.rs` | Inicialização única, single-core, documentado |
 
 > Padrões eliminados na V1.2: `static mut` para SPI (→ `Mutex`) e raw pointer
 > `*mut Ema` na Deadzone (→ flag booleana). Ver `dev/logs/v1_2_build.md`.
+>
+> V1.3: eliminados todos os `static mut` em `main.rs` (→ `StaticCell`).
+> HID/CDC State usam `StaticCell::init()` sem `transmute`. Ver `dev/logs/v1_3_build.md §16`.
 >
 > V1.23: removidos `cal_store.rs`, `settings.rs`, `sensor_health.rs` e
 > constantes V1 (`CALIB_OFFSET`, `CONFIG_OFFSET`, `MAGIC_*`).

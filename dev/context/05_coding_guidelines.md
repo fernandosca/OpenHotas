@@ -285,8 +285,12 @@ primitivas de tamanho estático. O projeto não usa coleções dinâmicas.
 
 ## 9. `unsafe` — Regras de Uso
 
-O projeto tem `unsafe` apenas em `main.rs` (transmute de lifetimes para
-`'static` nos periféricos). Este é o único `unsafe` aceito.
+O projeto concentra `unsafe` em `main.rs`:
+- Transmute de lifetimes para `'static` nos periféricos (Flash, SPI, MCP, MT6826)
+- `core::str::from_utf8_unchecked` em `chip_id_serial_static()` (invariante local)
+
+Os antigos `static mut` para USB/HID/CDC foram migrados para `StaticCell`
+(crate `static_cell`) — sem `unsafe` nos acessos.
 
 ```rust
 // ✅ Padrão aceito — único local, inicialização única, documentado
@@ -370,9 +374,10 @@ vira problema na próxima. Manter limpo é mais barato que debugar acúmulo.
 
 ```rust
 #![allow(clippy::missing_transmute_annotations)] // transmutes em main.rs
-#![allow(static_mut_refs)]                       // apenas se necessário (V1.1)
 #[allow(dead_code)]                              // stubs para V2
 ```
+
+(V1.3: `#[allow(static_mut_refs)]` removido — todos os `static mut` migrados para `StaticCell`.)
 
 Não remover esses allows sem entender o porquê. Ver `dev/context/01_architecture.md §6`.
 
@@ -474,7 +479,8 @@ As 5 tasks existentes em `src/tasks/` são o modelo de referência.
 ❌ Usar f32::abs() — usar libm::fabsf()
 ❌ Usar println!/eprintln! — usar defmt::info!/warn!/error!
 ❌ Usar std::time — usar embassy_time
-❌ "Corrigir" os transmute em main.rs — são intencionais
+❌ "Corrigir" os transmute de periféricos em main.rs (Flash, SPI, MCP, MT6826) — são intencionais
+❌ Os transmute de HID/CDC State foram removidos na V1.3 (→ `StaticCell`)
 ❌ Remover #[allow(dead_code)] de stubs marcados para V2
 ❌ Escrever em flash sem apagar o setor antes
 ❌ Alterar dev/context/ sem instrução explícita
@@ -536,7 +542,8 @@ cd firmware && cargo fmt --check
 - Não usar `std::` nem `alloc::`
 - Não acessar SPI fora de `with_spi0` / `with_spi1`
 - Não usar `impl Trait` ou genéricos em `#[embassy_executor::task]`
-- Não "corrigir" os `transmute` em `main.rs` — são intencionais
+- Não "corrigir" os `transmute` de periféricos em `main.rs` (Flash, SPI, MCP, MT6826) — são intencionais
+- Os transmute de HID/CDC State foram removidos na V1.3 (→ `StaticCell`)
 - Não alterar a ordem do pipeline (cal→center_offset→travel→maxjump→ema→deadzone→response)
 - Não dividir `input_task` · Não criar 5ª task sem aprovação
 - Não escrever na flash sem apagar o setor antes
