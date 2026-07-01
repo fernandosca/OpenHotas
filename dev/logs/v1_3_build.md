@@ -323,7 +323,53 @@ Fmt                                     : PASS
 
 ---
 
-*OpenHOTAS · V1.3.0 Build Log · Jun/2026*
+## 14. Steam Gamepad Recognition Fix — HID Usage (1/Jul/2026)
+
+### Problema
+
+O controle era detectado pelo OS e os eixos funcionavam sem erros, mas o Steam
+não reconhecia o dispositivo como gamepad/joystick.
+
+### Causa raiz
+
+O descriptor HID usava `Usage (Joystick)` (0x04). O Steam/SDL tem suporte mais
+maduro para `Usage (Gamepad)` (0x05) — o mesmo usage usado por controles Xbox
+e PlayStation. Dispositivos com `Usage (Joystick)` podem não ser mapeados
+automaticamente pelo Steam Input.
+
+### Solução
+
+Alteração pontual no descriptor HID:
+
+```diff
+- 0x09, 0x04, // Usage (Joystick)
++ 0x09, 0x05, // Usage (Gamepad)
+```
+
+### Tentativa descartada
+
+O `bDeviceClass` foi testado como `0x00` (per-interface) para forçar o kernel
+a enumerar a interface HID separadamente. Isso causou falha de enumeração no
+Windows — o dispositivo compósito (HID+CDC) precisa de `bDeviceClass = 0xEF`
+(Miscellaneous/IAD) para ser reconhecido corretamente. Revertido.
+
+### Validação
+
+- Windows: dispositivo reconhecido como HID após mudança de Usage
+- Steam: dispositivo aparece e pode ser mapeado
+- UF2 regenerado com picotool + --abs-block
+
+### Gate de Qualidade
+
+```text
+Build  : PASS
+Clippy : PASS
+Fmt    : PASS
+```
+
+---
+
+*OpenHOTAS · V1.3.0 Build Log · Jun/Jul 2026*
 
 ## 8. Crate `openhotas-filters` — Extração de Lógica Pura (Jun/2026)
 
@@ -701,5 +747,32 @@ Solução adotada:
 
 A compilação, lint, testes completos e geração do UF2 final foram
 deliberadamente adiados até o encerramento de todas as alterações desta rodada.
+
+---
+
+## 13. Validação em hardware — 1/Jul/2026
+
+### Resultado
+
+Versão V1.3 validada em testes básicos de tempo contínuo. O firmware operou
+sem erros, sem crashes e sem resets inesperados.
+
+### Observações
+
+- `sensor-status` reporta zero erros em todos os eixos
+- `errors` retorna contadores zerados
+- O único problema encontrado durante os testes foi mal contato na fiação,
+  não relacionado ao código
+- CS pins dos encoders X e Y invertidos fisicamente no hardware de teste
+  (solução via `set-axis --axis x --invert true` pela CLI)
+
+### Estado
+
+```text
+Build  : PASS
+UF2    : PASS (picotool, abs-block habilitado)
+Erros  : 0
+Crashes: 0
+```
 
 ---

@@ -19,12 +19,12 @@ pub struct GamepadReport {
 
 impl GamepadReport {
     pub fn to_bytes(self) -> [u8; REPORT_SIZE] {
-        let x = axis_to_i16(self.x.value).to_le_bytes();
-        let y = axis_to_i16(self.y.value).to_le_bytes();
-        let rz = axis_to_i16(self.twist.value).to_le_bytes();
+        let x = axis_to_i16(self.y.value).to_le_bytes();
+        let y = axis_to_i16(self.x.value).to_le_bytes();
+        let rx = axis_to_i16(self.twist.value).to_le_bytes();
         let b = self.buttons.to_le_bytes();
 
-        [x[0], x[1], y[0], y[1], rz[0], rz[1], b[0], b[1], b[2], b[3]]
+        [x[0], x[1], y[0], y[1], rx[0], rx[1], b[0], b[1], b[2], b[3]]
     }
 }
 
