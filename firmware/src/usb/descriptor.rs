@@ -1,6 +1,6 @@
 pub const HID_REPORT_DESCRIPTOR: &[u8] = &[
     0x05, 0x01, // Usage Page (Generic Desktop)
-    0x09, 0x04, // Usage (Joystick)
+    0x09, 0x05, // Usage (Gamepad)
     0xA1, 0x01, // Collection (Application)
     // Eixos X, Y, Rz (Twist) — 3x signed i16
     // Report ID removido: V1.22 só tem 1 report HID — não necessário
