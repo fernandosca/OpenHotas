@@ -1,13 +1,21 @@
+// A input_task tem 8 parametros (3 sensores + MCP + 3 pipelines + watchdog).
+// O clippy reclama de too_many_arguments, mas juntar parametros num struct
+// so para agradar o lint adiciona boilerplate desnecessario num no_std.
+#![allow(clippy::too_many_arguments)]
+
 use core::sync::atomic::Ordering;
 
 use crate::axis::AxisPipeline;
 use crate::config::runtime::{AxisToButtonRuntime, ButtonRuntimeConfig, CONFIG_SIGNAL};
-use crate::constants::{MCP23S17_DEBOUNCE_COUNT, MT6826_ANGLE_CENTER, MT6826_POWER_UP_MS};
+use crate::constants::{
+    MCP23S17_DEBOUNCE_COUNT, MT6826_ANGLE_CENTER, MT6826_POWER_UP_MS, WATCHDOG_TIMEOUT_MS,
+};
 use crate::diagnostics::runtime_stats;
 use crate::sensors::mcp23s::Mcp23s;
 use crate::sensors::mt6826::Mt6826;
 use crate::sensors::Sensor;
 use crate::usb::hid_gamepad::{GamepadReport, REPORT_SIGNAL};
+use embassy_rp::watchdog::Watchdog;
 use embassy_time::{Duration, Ticker, Timer};
 
 /// Track delta of a cumulative sensor counter into a runtime_stats atomic.
@@ -47,6 +55,7 @@ pub async fn input_task(
     mut pl_x: AxisPipeline,
     mut pl_y: AxisPipeline,
     mut pl_t: AxisPipeline,
+    mut wdt: Watchdog,
 ) -> ! {
     // O MT6826S especifica TPwrUp tipico de 3 ms. Todos os CS ja estao altos;
     // aguarde uma unica vez antes de iniciar qualquer transacao SPI.
@@ -206,6 +215,11 @@ pub async fn input_task(
         });
 
         runtime_stats::record_cycle(start.elapsed().as_micros().min(u64::from(u32::MAX)) as u32);
+
+        // Alimenta o watchdog a cada ciclo (500us). Se o input_task ou o executor
+        // travar, o chip reinicia apos WATCHDOG_TIMEOUT_MS (2000ms).
+        wdt.feed(Duration::from_millis(WATCHDOG_TIMEOUT_MS));
+
         ticker.next().await;
     }
 }

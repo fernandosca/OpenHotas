@@ -20,6 +20,8 @@ use embassy_rp::gpio::{Level, Output};
 use embassy_rp::otp;
 use embassy_rp::spi::{Config as SpiConfig, Phase, Polarity, Spi};
 use embassy_rp::usb::Driver;
+use embassy_rp::watchdog::Watchdog;
+use embassy_time::Duration as TimeDuration;
 use embassy_usb::class::cdc_acm::CdcAcmClass;
 use embassy_usb::class::hid::{Config as HidConfig, HidReaderWriter};
 use embassy_usb::{Builder, Config as UsbConfig};
@@ -166,10 +168,18 @@ async fn main(spawner: Spawner) {
     let (_reader, writer) = hid.split();
     let (cdc_sender, cdc_receiver) = cdc.split();
 
+    // Watchdog: se o input_task travar, o chip reinicia em WATCHDOG_TIMEOUT_MS.
+    // Alimentado a cada 500us pelo input_task — margem de ~4000x.
+    // Tambem cobre travamento do executor: se qualquer task bloquear o
+    // scheduler, o input_task nao roda e o watchdog dispara.
+    let mut wdt = Watchdog::new(p.WATCHDOG);
+    wdt.start(TimeDuration::from_millis(WATCHDOG_TIMEOUT_MS));
+
     spawner.spawn(tasks::hid::usb_task(usb).unwrap());
     spawner.spawn(tasks::hid::hid_task(writer).unwrap());
-    spawner
-        .spawn(tasks::input::input_task(sens_x, sens_y, sens_t, mcp23s, pl_x, pl_y, pl_t).unwrap());
+    spawner.spawn(
+        tasks::input::input_task(sens_x, sens_y, sens_t, mcp23s, pl_x, pl_y, pl_t, wdt).unwrap(),
+    );
     spawner.spawn(tasks::diagnostic::diagnostic_task().unwrap());
     spawner.spawn(tasks::cdc::cdc_task(cdc_sender, cdc_receiver).unwrap());
 }

@@ -940,3 +940,68 @@ Crashes: 0
 ```
 
 ---
+
+## 17. Hardware Watchdog (1/Jul/2026)
+
+### Motivação
+
+Se o firmware travar (loop infinito, deadlock no executor, corrupção de
+stack), o único recovery possível era power-cycle manual. Adicionar um
+watchdog de hardware garante reinicialização automática.
+
+### Implementação
+
+Usa o periférico `WATCHDOG` do RP2350 via `embassy_rp::watchdog::Watchdog`:
+
+```rust
+// main.rs — início único no boot
+let mut wdt = Watchdog::new(p.WATCHDOG);
+wdt.start(Duration::from_millis(WATCHDOG_TIMEOUT_MS));
+```
+
+O watchdog é passado como parâmetro para `input_task` e alimentado a cada
+ciclo (500 µs):
+
+```rust
+// input_task — a cada iteração do loop
+wdt.feed(Duration::from_millis(WATCHDOG_TIMEOUT_MS));
+```
+
+### Comportamento
+
+| Cenário | Resultado |
+|---------|-----------|
+| Operação normal | `input_task` alimenta o watchdog a cada 500µs |
+| `input_task` trava | Watchdog não é alimentado → reset em 2000ms |
+| Executor Embassy trava | Todas as tasks param → watchdog não alimentado → reset |
+| Task não-crítica trava | `input_task` continua rodando → watchdog alimentado normalmente |
+
+### Constante
+
+- `WATCHDOG_TIMEOUT_MS = 2000` (2 segundos, ~4000× o período do input_task)
+
+### Bump de dependência
+
+`embassy-time` atualizado de 0.4 → 0.5 para compatibilidade com o tipo
+`Duration` usado pelo `Watchdog` do `embassy-rp 0.10`.
+
+### Arquivos alterados
+
+| Arquivo | Mudança |
+|---------|---------|
+| `firmware/Cargo.toml` | `embassy-time = "0.5"` |
+| `firmware/src/constants.rs` | `WATCHDOG_TIMEOUT_MS` |
+| `firmware/src/main.rs` | `Watchdog::new()` + `.start()` + passa para `input_task` |
+| `firmware/src/tasks/input.rs` | `wdt.feed()` a cada ciclo + `#![allow(clippy::too_many_arguments)]` |
+
+### Gate de Qualidade
+
+```text
+Build  : PASS
+Clippy : PASS (zero warnings)
+Fmt    : PASS
+```
+
+---
+
+*OpenHOTAS · V1.3.0 Build Log · Jun/Jul 2026*
