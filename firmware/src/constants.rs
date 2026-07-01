@@ -119,6 +119,10 @@ pub const DIAGNOSTIC_INTERVAL_SECS: u64 = 5;
 
 pub const MAX_INPUT_CYCLE_US: u32 = 500;
 
+/// Watchdog timeout — se nenhuma task alimentar o watchdog neste período,
+/// o chip é reiniciado. 2000ms é ~4000x o período do input_task (500us).
+pub const WATCHDOG_TIMEOUT_MS: u64 = 2000;
+
 // ── Versionamento do Firmware ───────────────────────────────────────────
 
 /// Versão SemVer do firmware — lida do Cargo.toml em tempo de compilação
