@@ -456,8 +456,9 @@ Correções aplicadas:
 - pull-up interno habilitado em `SPI0_MISO` e `SPI1_MISO` depois da
   inicialização do periférico SPI (o Embassy limpa os pulls ao configurar o
   pad);
-- frames MT6826S totalmente zerados são rejeitados como `NotPresent` antes da
-  validação CRC;
+- inicialmente, frames MT6826S totalmente zerados foram rejeitados como
+  `NotPresent`; essa regra foi corrigida posteriormente na Seção 12 porque
+  ângulo zero, status zero e CRC zero formam uma resposta válida;
 - inicialização do MCP23S17 lê de volta `IOCON`, `IODIR` e `GPPU` nos dois
   endereços e exige os valores configurados;
 - novo erro interno `SensorError::NotPresent` diferencia ausência física de
@@ -572,25 +573,25 @@ passaram simultaneamente para `UNHEALTHY`. Os contadores por eixo cresceram na
 mesma taxa e mantiveram valores idênticos, enquanto os contadores globais de
 CRC e magneto permaneceram zerados.
 
-O comportamento é compatível com resposta zerada persistente no MISO
-compartilhado, classificada pelo driver como `NotPresent`. Como o pipeline usa
-o centro nominal quando uma leitura falha, o joystick deixou de responder aos
-movimentos enquanto a falha permaneceu ativa.
+Naquele momento, o comportamento foi interpretado como resposta zerada
+persistente no MISO compartilhado. A investigação posterior identificou o
+conector frouxo e corrigiu a classificação `NotPresent`, conforme a Seção 12.
+Como o pipeline usa o centro nominal quando uma leitura falha, o joystick
+deixou de responder aos movimentos enquanto a falha permaneceu ativa.
 
 Um dos módulos foi isolado como suspeito de manter o barramento ocupado. Em
 teste individual posterior, ele voltou a responder normalmente. Portanto, não
 há confirmação de dano permanente; o reteste com os três módulos reunidos
 permanece necessário.
 
-### Margem entre sensores
+### Margem entre sensores — tentativa posteriormente removida
 
 As leituras de X, Y e Twist eram executadas consecutivamente, sem tempo morto
 explícito entre a subida do CSN de um sensor e a descida do CSN seguinte.
 
-Foi adicionado um intervalo conservador de 2 us imediatamente após cada
-`CSN HIGH`, dentro do driver MT6826S. Assim, o próximo sensor somente pode ser
-selecionado depois desse intervalo, inclusive quando a transferência anterior
-termina com erro.
+Foi testado um intervalo conservador de 2 us imediatamente após cada
+`CSN HIGH`. O teste não alterou a falha observada e foi removido na revisão de
+1/Jul/2026, pois o datasheet não exige tempo morto depois de `CSN HIGH`.
 
 O datasheet indica que MISO retorna para alta impedância na subida de CSN e não
 exige espera em escala de microssegundos. O intervalo adicional serve como
@@ -609,15 +610,96 @@ periodo do input task = 500 us
 ```text
 Firmware release: PASS
 Sensor suspeito isolado: voltou a responder
-Tres sensores simultaneos: pendente de reteste prolongado
+Tres sensores simultaneos: falha reproduzida; causa física confirmada na Seção 12
 ```
 
 ### Diagnóstico pendente
 
-O comando `sensor-status` contabiliza respostas zeradas no total por eixo, mas
-o comando `errors` ainda não inclui `NotPresent` no total global. Por isso, uma
-falha contínua de aquisição pode coexistir com CRC e magneto zerados. Essa
+O comando `sensor-status` contabiliza respostas `NotPresent` no total por eixo,
+mas o comando `errors` ainda não inclui `NotPresent` no total global. Por isso,
+uma falha contínua de aquisição pode coexistir com CRC e magneto zerados. Essa
 limitação de telemetria deve ser corrigida separadamente, sem confundir estado
 atual de saúde com o histórico de falhas desde o boot.
+
+---
+
+## 12. Revisão final da aquisição MT6826S e toolchain RP2350 (1/Jul/2026)
+
+### Causa raiz da falha simultânea dos sensores
+
+Durante os testes, X, Y e Twist acumulavam erros na mesma taxa e alternavam
+para `UNHEALTHY`. Foram testados intervalos entre CS e frequências SPI menores,
+sem eliminar a falha. A redução para 250 kHz ultrapassou o orçamento da tarefa
+de entrada de 500 us e impediu o agendamento normal do HID.
+
+A inspeção física confirmou a causa raiz: **conector frouxo no barramento dos
+sensores**. Após corrigir o conector, a comunicação voltou a operar. Portanto,
+o problema principal não era o algoritmo CRC, o comando burst ou o modo SPI.
+
+### Revisão contra o datasheet MT6826S Rev.1.1
+
+Foram confirmados:
+
+- SPI Mode 3 (`CPOL=1`, `CPHA=1`);
+- burst read `0xA0 0x03` seguido de quatro bytes dummy;
+- CRC-8 com polinômio `0x07`, init zero e ordem MSB first;
+- CRC cobrindo `ANGLE_H`, `ANGLE_L` e `STATUS`;
+- extração do ângulo de 15 bits com deslocamento de um bit.
+
+Problemas encontrados e soluções permanentes:
+
+1. O driver não garantia explicitamente `TL` entre `CSN LOW` e o primeiro
+   clock. Foi adicionado setup de 1 us (`TL` mínimo do datasheet: 100 ns).
+2. O driver subia CS imediatamente após a transferência, sem garantir `TH`.
+   Foi adicionado hold de 1 us antes de `CSN HIGH` (`TH` mínimo em 1 MHz:
+   0,5 us).
+3. Não havia espera explícita de power-up. A tarefa agora aguarda 5 ms uma
+   única vez antes da primeira leitura (`TPwrUp` típico: 3 ms).
+4. A resposta `00 00 00 00` era classificada como sensor ausente, apesar de
+   representar legalmente ângulo zero com CRC zero. Com pull-up no MISO, sensor
+   ausente passa a ser identificado por `FF FF FF FF`.
+5. O atraso experimental de 2 us após `CSN HIGH` foi removido. Permanecem
+   somente os tempos exigidos pelo datasheet.
+
+A frequência SPI final voltou para 1 MHz. A instrumentação temporária
+`sensor-frames` foi removida após a causa física ser identificada, mantendo o
+protocolo em v3.0.
+
+### Correções no fluxo ELF/UF2
+
+O conversor `elf2uf2-rs` gerou UF2 sem a correção do errata RP2350-E10 e foi
+removido do ambiente, documentação e CI. O fluxo oficial passou a usar:
+
+```sh
+picotool uf2 convert firmware.elf -t elf firmware.uf2 -t uf2 --abs-block
+```
+
+O `picotool` local foi validado como build Release oficial, versão 2.1.0, com
+suporte a `uf2 convert --abs-block`. O CI usa pacote oficial 2.2.0-a4.
+
+Todos os artefatos `.elf`, `.uf2` e `.ulf` de teste foram removidos, seguidos
+de `cargo clean` no workspace e no diretório `firmware/target` legado.
+
+### Revisão do linker RP2350
+
+Uma tentativa de substituir integralmente o `link.x` do `cortex-m-rt` criou um
+`rp2350-link.x` privado. O arquivo continha uma diretiva `INSERT AFTER` em
+posição sintaticamente inválida e causou falha no `rust-lld`.
+
+Solução adotada:
+
+- removido `rp2350-link.x`;
+- restaurado o `link.x` oficial do `cortex-m-rt 0.7.5`;
+- mantida somente a seção `.start_block` RP2350 em `memory.x`;
+- `FLASH` inicia em `0x10000000` e `.start_block` permanece nos primeiros
+  4 KiB examinados pela Boot ROM;
+- RAM mantida como região contínua `0x20000000..0x20082000` (520 KiB);
+- rastreamento do hash Git corrigido para observar o HEAD e a ref reais do
+  repositório, em vez do caminho inexistente `firmware/.git/HEAD`.
+
+### Estado de validação
+
+A compilação, lint, testes completos e geração do UF2 final foram
+deliberadamente adiados até o encerramento de todas as alterações desta rodada.
 
 ---

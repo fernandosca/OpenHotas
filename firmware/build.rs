@@ -15,10 +15,13 @@ fn main() {
     println!("cargo:rustc-link-arg-bins=-Tdefmt.x");
 
     // ── Injetar git hash ───────────────────────────────────────────────
-    println!("cargo:rerun-if-changed=.git/HEAD");
-    if let Ok(head) = std::fs::read_to_string(".git/HEAD") {
+    if let Some(head_path) = git_path("HEAD") {
+        println!("cargo:rerun-if-changed={}", head_path.display());
+        let head = std::fs::read_to_string(&head_path).unwrap_or_default();
         if let Some(ref_path) = head.strip_prefix("ref: ").map(|s| s.trim()) {
-            println!("cargo:rerun-if-changed=.git/{}", ref_path);
+            if let Some(ref_path) = git_path(ref_path) {
+                println!("cargo:rerun-if-changed={}", ref_path.display());
+            }
         }
     }
 
@@ -32,14 +35,6 @@ fn main() {
     println!("cargo:rustc-env=GIT_HASH={}", git_hash);
 
     // ── USB device_release (BCD) derivado do Cargo.toml ─────────────────
-    // bcdDevice segue a convenção MM.NN onde minor ocupa as dezenas do byte
-    // baixo. Consequência: minor deve ser 0–9 (cada incremento = 0.10 no BCD).
-    // Ao atingir minor 9, bumpar major e resetar minor para 0.
-    // Ex: 1.0 → 0x0100, 1.3 → 0x0130, 1.9 → 0x0190, 2.0 → 0x0200
-    //
-    // Mantém o descritor USB sincronizado com a versão SemVer do crate,
-    // evitando o defasamento manual que deixou device_release preso em 1.23
-    // entre V1.25 e V1.3.0. O campo patch é ignorado (USB usa só major.minor).
     let major: u8 = env::var("CARGO_PKG_VERSION_MAJOR")
         .ok()
         .and_then(|s| s.parse().ok())
@@ -56,9 +51,18 @@ fn main() {
     println!("cargo:rustc-env=USB_DEVICE_RELEASE_BCD=0x{:04X}", bcd);
 }
 
-/// Codifica um valor decimal (0..=99) em BCD de 1 byte
-/// (nibble alto = dezena, nibble baixo = unidade).
-/// Ex.: 30 → 0x30, 3 → 0x03, 99 → 0x99.
+fn git_path(name: &str) -> Option<PathBuf> {
+    let output = std::process::Command::new("git")
+        .args(["rev-parse", "--git-path", name])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let path = String::from_utf8(output.stdout).ok()?;
+    Some(PathBuf::from(path.trim()))
+}
+
 fn bcd_encode(v: u8) -> u16 {
     let tens = (v / 10) as u16;
     let units = (v % 10) as u16;

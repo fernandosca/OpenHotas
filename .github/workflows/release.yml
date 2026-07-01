@@ -30,17 +30,17 @@ jobs:
         working-directory: firmware
         run: cargo build --release --target thumbv8m.main-none-eabihf
 
-      - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
-
-      - name: Install elf2uf2-rs
-        run: cargo install elf2uf2-rs
+      - name: Install picotool
+        run: |
+          curl -L -o /tmp/picotool.tar.gz https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.2.0-3/picotool-2.2.0-a4-x86_64-lin.tar.gz
+          tar -xzf /tmp/picotool.tar.gz -C /tmp
+          sudo install /tmp/picotool/picotool /usr/local/bin/picotool
 
       - name: Copy ELF
         run: cp target/thumbv8m.main-none-eabihf/release/openhotas openhotas.elf
 
       - name: Generate UF2
-        run: elf2uf2-rs openhotas.elf openhotas.uf2
+        run: picotool uf2 convert openhotas.elf -t elf openhotas.uf2 -t uf2 --platform rp2350 --abs-block
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

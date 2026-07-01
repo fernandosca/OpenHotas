@@ -2,13 +2,13 @@ use core::sync::atomic::Ordering;
 
 use crate::axis::AxisPipeline;
 use crate::config::runtime::{AxisToButtonRuntime, ButtonRuntimeConfig, CONFIG_SIGNAL};
-use crate::constants::{MCP23S17_DEBOUNCE_COUNT, MT6826_ANGLE_CENTER};
+use crate::constants::{MCP23S17_DEBOUNCE_COUNT, MT6826_ANGLE_CENTER, MT6826_POWER_UP_MS};
 use crate::diagnostics::runtime_stats;
 use crate::sensors::mcp23s::Mcp23s;
 use crate::sensors::mt6826::Mt6826;
 use crate::sensors::Sensor;
 use crate::usb::hid_gamepad::{GamepadReport, REPORT_SIGNAL};
-use embassy_time::{Duration, Ticker};
+use embassy_time::{Duration, Ticker, Timer};
 
 /// Track delta of a cumulative sensor counter into a runtime_stats atomic.
 /// V1.24: replaces repetitive if-blocks (audit #6).
@@ -48,6 +48,10 @@ pub async fn input_task(
     mut pl_y: AxisPipeline,
     mut pl_t: AxisPipeline,
 ) -> ! {
+    // O MT6826S especifica TPwrUp tipico de 3 ms. Todos os CS ja estao altos;
+    // aguarde uma unica vez antes de iniciar qualquer transacao SPI.
+    Timer::after(Duration::from_millis(MT6826_POWER_UP_MS)).await;
+
     // Runtime button config — starts with defaults, updated via CONFIG_SIGNAL
     let mut btn_cfg = ButtonRuntimeConfig::default();
     // Track error counts to detect per-sensor changes
