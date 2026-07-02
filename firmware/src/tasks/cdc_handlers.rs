@@ -25,7 +25,7 @@ use crate::config::stored_config_v2;
 use crate::constants::{FIRMWARE_GIT_HASH, FIRMWARE_VERSION, MT6826_ANGLE_MAX};
 use crate::diagnostics::runtime_stats;
 
-use crate::tasks::cdc::CalibrationSession;
+use crate::tasks::cdc::{CalibrationSession, PendingReset};
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -116,7 +116,7 @@ pub fn handle_read_request(req: &Request, active_config: &DeviceConfig) -> Respo
 pub fn handle_write_request(
     req: &Request,
     active_config: &mut DeviceConfig,
-    pending_reboot: &mut bool,
+    pending_reset: &mut PendingReset,
 ) -> Response {
     match req {
         Request::SetConfig(cfg) => match runtime::from_protocol_config(cfg) {
@@ -151,11 +151,15 @@ pub fn handle_write_request(
                 signal_latest_config(runtime_cfg);
             }
             *active_config = defaults;
-            *pending_reboot = true;
+            *pending_reset = PendingReset::Application;
             Response::Ack
         }
         Request::Reboot => {
-            *pending_reboot = true;
+            *pending_reset = PendingReset::Application;
+            Response::Ack
+        }
+        Request::RebootToBootloader => {
+            *pending_reset = PendingReset::UsbBoot;
             Response::Ack
         }
         _ => Response::Error(ProtocolError::InvalidPayload),

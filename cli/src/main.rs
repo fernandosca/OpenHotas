@@ -16,6 +16,7 @@
 //!   save              Persist config to flash
 //!   load-defaults     Load factory defaults (runtime only)
 //!   reboot            Trigger software reboot
+//!   bootloader        Reboot into the ROM UF2 bootloader
 //!   factory-reset     Erase stored config and reboot
 //!   calibrate         Interactive axis calibration
 //!
@@ -50,6 +51,7 @@ fn print_help() {
            save                  Persist config to flash\n\
            load-defaults         Load factory defaults (runtime only)\n\
            reboot                Trigger software reboot\n\
+           bootloader            Reboot into the ROM UF2 bootloader\n\
            factory-reset         Erase stored config and reboot\n\
            calibrate            Interactive axis calibration\n\
          \n\
@@ -126,6 +128,7 @@ fn main() {
         "save" => commands::cmd_save(&mut t),
         "load-defaults" => commands::cmd_load_defaults(&mut t),
         "reboot" => commands::cmd_reboot(&mut t),
+        "bootloader" => commands::cmd_bootloader(&mut t),
         "factory-reset" => commands::cmd_factory_reset(&mut t),
         "set-axis" => {
             let axis = extract_flag_value(&filtered_args, "--axis");

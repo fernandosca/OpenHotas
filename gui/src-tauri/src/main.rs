@@ -7,6 +7,7 @@ use commands::DeviceState;
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(DeviceState::new())
         .invoke_handler(tauri::generate_handler![
             // Serial port
@@ -17,6 +18,7 @@ fn main() {
             commands::get_info,
             commands::reboot,
             commands::factory_reset,
+            commands::install_firmware,
             // Config
             commands::get_config,
             commands::set_config,

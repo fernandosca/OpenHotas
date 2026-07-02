@@ -58,6 +58,27 @@ jobs:
             - name: Build
               run: cargo build --release --target thumbv8m.main-none-eabihf
 
+            - name: Install picotool
+              working-directory: ${{ github.workspace }}
+              run: |
+                  curl -L -o /tmp/picotool.tar.gz https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.2.0-3/picotool-2.2.0-a4-x86_64-lin.tar.gz
+                  tar -xzf /tmp/picotool.tar.gz -C /tmp
+                  sudo install /tmp/picotool/picotool /usr/local/bin/picotool
+
+            - name: Generate UF2
+              working-directory: ${{ github.workspace }}
+              run: |
+                  picotool uf2 convert \
+                    target/thumbv8m.main-none-eabihf/release/openhotas \
+                    -t elf openhotas.uf2 -t uf2 --platform rp2350 --abs-block
+
+            - name: Upload firmware artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: openhotas-firmware-${{ github.sha }}
+                  path: openhotas.uf2
+                  if-no-files-found: error
+
             - name: Clippy
               run: cargo clippy --target thumbv8m.main-none-eabihf -- -D warnings
 
@@ -148,3 +169,45 @@ jobs:
 
             - name: Tauri backend check
               run: cargo check --manifest-path src-tauri/Cargo.toml
+
+    gui-windows:
+        runs-on: windows-latest
+        needs: protocol
+
+        defaults:
+            run:
+                working-directory: gui
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v5
+
+            - name: Install Rust stable
+              uses: dtolnay/rust-toolchain@stable
+
+            - name: Setup Node
+              uses: actions/setup-node@v6
+              with:
+                  node-version: 24
+                  cache: npm
+                  cache-dependency-path: gui/package-lock.json
+
+            - name: Cache Rust
+              uses: Swatinem/rust-cache@v2
+              with:
+                  workspaces: gui/src-tauri
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Build Windows GUI
+              run: npm run tauri build
+
+            - name: Upload Windows GUI artifacts
+              uses: actions/upload-artifact@v4
+              with:
+                  name: openhotas-gui-windows-${{ github.sha }}
+                  path: |
+                      target/release/bundle/msi/*.msi
+                      target/release/bundle/nsis/*.exe
+                  if-no-files-found: error

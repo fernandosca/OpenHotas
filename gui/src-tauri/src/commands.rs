@@ -9,6 +9,8 @@
 //! The firmware speaks the openhotas-protocol (postcard + CRC16-CCITT frames).
 //! We use the `openhotas-protocol` crate directly so types are never duplicated.
 
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -184,6 +186,130 @@ pub fn reboot(state: State<DeviceState>) -> CmdResult<()> {
 pub fn factory_reset(state: State<DeviceState>) -> CmdResult<()> {
     send_recv(&state, Request::FactoryReset)?;
     Ok(())
+}
+
+#[derive(serde::Serialize)]
+pub struct FirmwareUpdateResult {
+    volume: String,
+    bytes_copied: u64,
+}
+
+fn validate_uf2(path: &Path) -> CmdResult<u64> {
+    if path
+        .extension()
+        .and_then(|v| v.to_str())
+        .map(|v| v.eq_ignore_ascii_case("uf2"))
+        != Some(true)
+    {
+        return Err(CommandError::from("Select a .uf2 file"));
+    }
+    let data = fs::read(path).map_err(|e| CommandError(format!("read UF2: {e}")))?;
+    if data.is_empty() || data.len() % 512 != 0 {
+        return Err(CommandError::from(
+            "Invalid UF2: size must be a non-zero multiple of 512 bytes",
+        ));
+    }
+    for block in data.chunks_exact(512) {
+        let u32_at = |offset| u32::from_le_bytes(block[offset..offset + 4].try_into().unwrap());
+        if u32_at(0) != 0x0A32_4655 || u32_at(4) != 0x9E5D_5157 || u32_at(508) != 0x0AB1_6F30 {
+            return Err(CommandError::from("Invalid UF2 block signature"));
+        }
+    }
+    Ok(data.len() as u64)
+}
+
+#[cfg(target_os = "windows")]
+fn boot_volumes() -> Vec<PathBuf> {
+    (b'D'..=b'Z')
+        .map(|letter| PathBuf::from(format!("{}:\\", letter as char)))
+        .filter(|root| root.join("INFO_UF2.TXT").is_file())
+        .collect()
+}
+
+#[cfg(target_os = "macos")]
+fn boot_volumes() -> Vec<PathBuf> {
+    fs::read_dir("/Volumes")
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|root| root.join("INFO_UF2.TXT").is_file())
+        .collect()
+}
+
+#[cfg(target_os = "linux")]
+fn boot_volumes() -> Vec<PathBuf> {
+    let mut roots = vec![
+        PathBuf::from("/media"),
+        PathBuf::from("/run/media"),
+        PathBuf::from("/mnt"),
+    ];
+    let mut candidates = Vec::new();
+    while let Some(root) = roots.pop() {
+        let Ok(entries) = fs::read_dir(root) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.join("INFO_UF2.TXT").is_file() {
+                candidates.push(path);
+            } else if path.is_dir() {
+                roots.push(path);
+            }
+        }
+    }
+    candidates
+}
+
+#[tauri::command]
+pub fn install_firmware(
+    path: String,
+    state: State<DeviceState>,
+) -> CmdResult<FirmwareUpdateResult> {
+    let source = PathBuf::from(path);
+    let expected_size = validate_uf2(&source)?;
+    let volumes_before = boot_volumes();
+
+    match send_recv(&state, Request::RebootToBootloader)? {
+        Response::Ack => {}
+        other => return Err(CommandError(format!("unexpected: {other:?}"))),
+    }
+    // Release the serial handle before Windows enumerates the ROM bootloader.
+    *state.port.lock().unwrap() = None;
+
+    let deadline = std::time::Instant::now() + Duration::from_secs(15);
+    let volume = loop {
+        let candidates = boot_volumes();
+        let mut new_candidates: Vec<_> = candidates
+            .iter()
+            .filter(|path| !volumes_before.contains(path))
+            .cloned()
+            .collect();
+        if new_candidates.len() == 1 {
+            break new_candidates.remove(0);
+        }
+        // A Pico may already be in boot mode; accept it only when unambiguous.
+        if volumes_before.is_empty() && candidates.len() == 1 {
+            break candidates[0].clone();
+        }
+        if std::time::Instant::now() >= deadline {
+            return Err(CommandError::from(
+                "RPI-RP2 volume not found within 15 seconds",
+            ));
+        }
+        std::thread::sleep(Duration::from_millis(200));
+    };
+
+    let destination = volume.join("openhotas.uf2");
+    let bytes_copied = fs::copy(&source, &destination)
+        .map_err(|e| CommandError(format!("copy UF2 to {}: {e}", volume.display())))?;
+    if bytes_copied != expected_size {
+        return Err(CommandError::from("Incomplete UF2 copy"));
+    }
+    Ok(FirmwareUpdateResult {
+        volume: volume.display().to_string(),
+        bytes_copied,
+    })
 }
 
 // ── Config commands ────────────────────────────────────────────────────────────
