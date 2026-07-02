@@ -1,9 +1,56 @@
 use crate::tuning::DEFAULT_DEADZONE;
 use libm::fabsf;
 
+/// Deadzone — zera o sinal perto do centro e remapeia o restante para [-1, 1].
+///
+/// # Posição no pipeline
+///
+/// Calibration → MaxJump → EMA → **Deadzone** → ResponseCurve
+///
+/// Vem DEPOIS do EMA porque queremos que a suavização ocorra antes de
+/// cortar o sinal na borda da zona morta. Se a deadzone viesse antes,
+/// o EMA suavizaria a transição abrupta de 0→nonzero na saída da zona,
+/// introduzindo latência indesejada no início do movimento.
+///
+/// # Invariantes
+///
+/// - `threshold` clamped em [0.0, 1.0].
+/// - `in_zone` rastreia se o sinal está DENTRO da zona morta no ciclo anterior.
+///   Usado para detectar a transição de fora→dentro (`just_entered`).
+///
+/// # Remapeamento
+///
+/// Valores dentro de [-threshold, +threshold] → 0.0.
+/// Valores fora são reescalados linearmente para [-1.0, 1.0]:
+///
+/// ```text
+/// output = sign(input) * (|input| - threshold) / (1 - threshold)
+/// ```
+///
+/// Isso preserva a inclinação da curva de resposta após a deadzone,
+/// evitando que o usuário precise de mais movimento para atingir 100%.
+///
+/// # Flag `just_entered`
+///
+/// A tupla de retorno inclui `(valor_filtrado, entrou_na_zona)`.
+/// `entrou_na_zona = true` apenas no primeiro ciclo em que o sinal cruza
+/// para dentro da deadzone. Usado pelo `AxisPipeline` para resetar o EMA
+/// no eixo Twist, mas NÃO nos eixos X/Y (preserva continuidade perto do centro).
+///
+/// # Casos extremos
+///
+/// - `threshold = 0.0`: pass-through, sem zona morta.
+/// - `threshold >= 1.0`: toda a faixa é zona morta — saída sempre 0.0.
+///
+/// # no_std / heap
+///
+/// Sem heap. Flags + aritmética f32.
 #[derive(Debug)]
 pub struct Deadzone {
+    /// Limiar da zona morta em unidades normalizadas [0.0, 1.0].
     threshold: f32,
+    /// `true` se o sample anterior estava dentro da zona morta.
+    /// Usado para detectar a transição de entrada (just_entered).
     in_zone: bool,
 }
 
@@ -15,6 +62,10 @@ impl Deadzone {
         }
     }
 
+    /// Aplica a zona morta. Retorna `(valor_processado, entrou_na_zona)`.
+    ///
+    /// `entrou_na_zona` é `true` apenas no ciclo em que o sinal cruza
+    /// de fora para dentro da zona morta. Usado para reset de EMA.
     pub fn apply(&mut self, input: f32) -> (f32, bool) {
         let input = input.clamp(-1.0, 1.0);
         let mut just_entered = false;
@@ -38,6 +89,8 @@ impl Deadzone {
         (val, just_entered)
     }
 
+    /// Altera o limiar da zona morta em runtime.
+    /// O novo valor é clamped em [0.0, 1.0].
     pub fn set_threshold(&mut self, t: f32) {
         self.threshold = t.clamp(0.0, 1.0);
     }

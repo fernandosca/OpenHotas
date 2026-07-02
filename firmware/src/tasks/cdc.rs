@@ -182,7 +182,9 @@ pub async fn cdc_task(
                                 break 'connection;
                             }
                             if pending_reset != PendingReset::None {
-                                // V1.23 (F2): 100ms delay so PC receives Ack before reset
+                                // V1.23 (F2): delay de 100ms para o PC receber o Ack
+                                // antes do reset. Sem isso, o APP nunca via o Ack
+                                // e reportava "command failed" mesmo com sucesso.
                                 Timer::after_millis(100).await;
                                 match pending_reset {
                                     PendingReset::Application => {

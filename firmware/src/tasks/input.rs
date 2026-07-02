@@ -1,3 +1,35 @@
+//! Task principal de entrada: lê sensores a cada 500μs, processa o pipeline
+//! de sinal e envia o report HID.
+//!
+//! # Timing
+//!
+//! O ciclo é fixo em 500μs (`Ticker::every(500μs)`). Cada iteração:
+//! 1. Lê 3 encoders MT6826S (SPI1) + 2 chips MCP23S17 (SPI0)
+//! 2. Aplica pipeline de calibração + filtros
+//! 3. Envia report para hid_task via `REPORT_SIGNAL`
+//! 4. Alimenta o watchdog
+//!
+//! Se o ciclo exceder 500μs, o `Ticker` compensa no próximo ciclo
+//! (não acumula atraso). O watchdog tem margem de ~4000x (2000ms / 500μs),
+//! então alguns ciclos lentos não disparam reset.
+//!
+//! # Degradação
+//!
+//! Se um sensor falha (CRC, magnet), `read()` retorna `Err` e o pipeline
+//! recebe `MT6826_ANGLE_CENTER` (centro) com `healthy=false`.
+//! O eixo continua gerando saída centrada — o stick não trava,
+//! mas o movimento é ignorado até o sensor se recuperar.
+//!
+//! # Watchdog
+//!
+//! O watchdog é alimentado a cada ciclo. Se o executor travar
+//! (qualquer task bloqueia o scheduler), o input_task não roda,
+//! o watchdog não é alimentado e o chip reinicia em 2000ms.
+//!
+//! # no_std / heap
+//!
+//! Sem heap. Toda I/O é blocking SPI (dentro de critical sections curtas).
+
 // A input_task tem 8 parametros (3 sensores + MCP + 3 pipelines + watchdog).
 // O clippy reclama de too_many_arguments, mas juntar parametros num struct
 // so para agradar o lint adiciona boilerplate desnecessario num no_std.
@@ -18,8 +50,14 @@ use crate::usb::hid_gamepad::{GamepadReport, REPORT_SIGNAL};
 use embassy_rp::watchdog::Watchdog;
 use embassy_time::{Duration, Ticker, Timer};
 
-/// Track delta of a cumulative sensor counter into a runtime_stats atomic.
-/// V1.24: replaces repetitive if-blocks (audit #6).
+/// Macro para tracking de delta entre contadores cumulativos do sensor
+/// e os atomics de diagnóstico.
+///
+/// Cada sensor MT6826S mantém contadores internos (`error_count`, `crc_error_count`,
+/// `magnet_error_count`) que só aumentam. Esta macro calcula o delta desde a
+/// última leitura e adiciona ao atomic global em `runtime_stats`.
+///
+/// V1.24: substitui if-blocks repetitivos (audit #6).
 macro_rules! track_delta {
     ($counter:expr, $current:expr, $prev:expr) => {
         if $current > $prev {
@@ -29,7 +67,12 @@ macro_rules! track_delta {
     };
 }
 
-/// Apply axis-to-button mapping: set bit in button mask if axis exceeds threshold.
+/// Aplica mapeamento axis-to-button.
+/// Se o valor do eixo exceder o threshold na direção configurada,
+/// ativa o bit do botão virtual correspondente.
+///
+/// A composição com botões físicos é OR: virtual e físico podem acionar
+/// o mesmo botão simultaneamente.
 fn apply_axis_to_button(value: f32, config: &AxisToButtonRuntime, buttons: &mut u32) {
     if !config.enabled || config.button_index > 31 {
         return;
@@ -83,7 +126,10 @@ pub async fn input_task(
     let mut ticker = Ticker::every(Duration::from_micros(500));
 
     loop {
-        // Check for new runtime config from cdc_task (non-blocking — D-07)
+        // -- Nova configuração (não-bloqueante) -------------------------------
+        // CONFIG_SIGNAL tem capacity=1. Se cdc_task enviou enquanto input_task
+        // ainda não tinha consumido a anterior, a mais antiga é descartada
+        // (signal_latest_config em runtime.rs). try_receive = non-blocking.
         if let Ok(cfg) = CONFIG_SIGNAL.try_receive() {
             pl_x.update_runtime_config(cfg.axes[0]);
             pl_y.update_runtime_config(cfg.axes[1]);
@@ -107,11 +153,17 @@ pub async fn input_task(
             debounce_applied = true;
         }
 
+        // -- Leitura dos sensores --------------------------------------------
         let start = embassy_time::Instant::now();
 
+        // Se a leitura do MT6826S falhar (CRC, magnet, SPI), `ok()` converte
+        // para Option::None. O pipeline mais abaixo usa `unwrap_or(CENTER)`
+        // e marca `healthy=false` — o eixo fica centrado até recuperar.
         let rx = sens_x.read().ok();
         let ry = sens_y.read().ok();
         let rt = sens_t.read().ok();
+        // Se o MCP23S17 falhar (SPI), retorna u32::MAX (todos botões liberados)
+        // e marca BUTTONS_DEGRADED. Não trava o stick.
         let raw_btns = match mcp.read() {
             Ok(buttons) => buttons,
             Err(_) => {
@@ -183,7 +235,11 @@ pub async fn input_task(
         let out_y = pl_y.process(ry.unwrap_or(MT6826_ANGLE_CENTER), ry.is_some());
         let out_t = pl_t.process(rt.unwrap_or(MT6826_ANGLE_CENTER), rt.is_some());
 
-        // Apply button config: invert, then mask
+        // -- Pós-processamento de botões -------------------------------------
+        // 1. Inverte conforme inverted_mask (XOR): botões active-high no hardware
+        //    viram active-high no HID.
+        // 2. Aplica enabled_mask (AND): desliga botões não mapeados.
+        // 3. Aplica axis-to-button: eixos podem acionar botões virtuais.
         let mut buttons = raw_btns;
         buttons ^= btn_cfg.inverted_mask;
         buttons &= btn_cfg.enabled_mask;
@@ -214,12 +270,15 @@ pub async fn input_task(
             buttons,
         });
 
+        // -- Fim do ciclo ----------------------------------------------------
         runtime_stats::record_cycle(start.elapsed().as_micros().min(u64::from(u32::MAX)) as u32);
 
-        // Alimenta o watchdog a cada ciclo (500us). Se o input_task ou o executor
-        // travar, o chip reinicia apos WATCHDOG_TIMEOUT_MS (2000ms).
+        // Alimenta o watchdog. Se input_task ou o executor travarem, o chip
+        // reinicia em WATCHDOG_TIMEOUT_MS. Margem: ~4000 ciclos de 500μs.
         wdt.feed(Duration::from_millis(WATCHDOG_TIMEOUT_MS));
 
+        // Aguarda o próximo tick de 500μs. O Ticker corrige drift:
+        // se este ciclo atrasou, o próximo espera menos para manter o período.
         ticker.next().await;
     }
 }

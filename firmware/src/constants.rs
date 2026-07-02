@@ -140,6 +140,9 @@ pub const FIRMWARE_GIT_HASH: &str = match option_env!("GIT_HASH") {
 // design. Representam defaults que podem ser sobrescritos via calibracao
 // salva em flash (DeviceConfig). Alterar aqui afeta apenas o comportamento
 // fora de calibracao — NAO afeta o contrato de hardware acima.
+//
+// Estes valores também existem em `crates/openhotas-filters/src/tuning.rs`
+// (re-exportados via firmware/src/filters). Manter sincronizado.
 
 pub mod tuning {
     pub const DEFAULT_EMA_ALPHA: f32 = 0.3;
