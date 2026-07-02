@@ -85,4 +85,8 @@ pub enum Request {
     /// The new calibration is applied to runtime config but NOT persisted
     /// (use SaveConfig to persist).
     FinishCalibration(AxisId),
+
+    /// Reboot into the RP2350 ROM USB bootloader (UF2 mass-storage mode).
+    /// Appended to preserve the postcard discriminants of existing requests.
+    RebootToBootloader,
 }

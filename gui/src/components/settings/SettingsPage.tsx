@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { confirm, open } from "@tauri-apps/plugin-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -6,7 +7,7 @@ import {
   DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import type { UseDeviceConfigReturn } from "@/hooks/useDeviceConfig";
-import { factoryReset, reboot } from "@/lib/tauri";
+import { factoryReset, installFirmware, reboot } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useTheme } from "@/theme/ThemeProvider";
@@ -17,11 +18,43 @@ interface Props {
 }
 
 type DangerAction = "reboot" | "defaults" | "factory";
+type UpdateState = "idle" | "ready" | "installing" | "done" | "error";
 
 export function SettingsPage({ deviceConfig }: Props) {
   const { theme, setTheme } = useTheme();
   const [dangerDialog, setDangerDialog] = useState<DangerAction | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
+  const [uf2Path, setUf2Path] = useState<string | null>(null);
+  const [updateState, setUpdateState] = useState<UpdateState>("idle");
+  const [updateMessage, setUpdateMessage] = useState("");
+
+  async function chooseFirmware() {
+    const selected = await open({ multiple: false, filters: [{ name: "UF2 firmware", extensions: ["uf2"] }] });
+    if (typeof selected === "string") {
+      setUf2Path(selected);
+      setUpdateState("ready");
+      setUpdateMessage(selected.split(/[\\/]/).pop() ?? selected);
+    }
+  }
+
+  async function updateFirmware() {
+    if (!uf2Path) return;
+    const approved = await confirm(
+      "O dispositivo será reiniciado em modo bootloader e o firmware selecionado será gravado. Continuar?",
+      { title: "Atualizar firmware", kind: "warning" }
+    );
+    if (!approved) return;
+    setUpdateState("installing");
+    setUpdateMessage("Reiniciando em modo bootloader e aguardando o volume RPI-RP2...");
+    try {
+      const result = await installFirmware(uf2Path);
+      setUpdateState("done");
+      setUpdateMessage(`Firmware copiado (${result.bytes_copied} bytes). O dispositivo será reiniciado.`);
+    } catch (error) {
+      setUpdateState("error");
+      setUpdateMessage(String(error));
+    }
+  }
 
   async function handleDanger() {
     if (!dangerDialog) return;
@@ -71,6 +104,31 @@ export function SettingsPage({ deviceConfig }: Props) {
           </div>
 
           <div className="mt-auto border-t border-hud-border pt-3">
+            <div className="mb-2 text-[10px] uppercase tracking-widest text-content-muted">
+              Atualização de firmware
+            </div>
+            <div className="mb-3 flex flex-col gap-2">
+              <Button variant="outline" size="sm" onClick={chooseFirmware} disabled={updateState === "installing"}
+                className="h-8 text-xs border-hud-border2 text-content-muted">
+                Selecionar arquivo .uf2
+              </Button>
+              {uf2Path && (
+                <Button size="sm" onClick={updateFirmware} disabled={updateState === "installing"}
+                  className="h-8 text-xs bg-warn/10 border border-warn/40 text-warn hover:bg-warn/20">
+                  {updateState === "installing" ? "Atualizando..." : "Instalar firmware"}
+                </Button>
+              )}
+              {updateMessage && (
+                <div className={cn("break-all text-[10px]", updateState === "error" ? "text-danger" : updateState === "done" ? "text-success" : "text-content-muted")}>
+                  {updateMessage}
+                </div>
+              )}
+              <div className="text-[10px] text-content-muted">
+                O dispositivo desconectará durante a gravação. Não remova o cabo USB.
+              </div>
+            </div>
+
+            <div className="border-t border-hud-border pt-3">
             <div className="mb-2 text-[10px] uppercase tracking-widest text-danger/70">
               Ações do dispositivo
             </div>
@@ -99,6 +157,7 @@ export function SettingsPage({ deviceConfig }: Props) {
               >
                 ⚠ Factory reset
               </Button>
+            </div>
             </div>
           </div>
         </CardContent>

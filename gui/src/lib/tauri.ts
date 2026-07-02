@@ -211,3 +211,13 @@ export async function connect(portName: string): Promise<DeviceInfo> {
 export async function disconnect(): Promise<void> {
   return invoke("disconnect");
 }
+
+export interface FirmwareUpdateResult {
+  volume: string;
+  bytes_copied: number;
+}
+
+/** Reboot the connected device into ROM boot mode and copy a validated UF2. */
+export async function installFirmware(path: string): Promise<FirmwareUpdateResult> {
+  return invoke<FirmwareUpdateResult>("install_firmware", { path });
+}

@@ -269,6 +269,16 @@ pub fn cmd_reboot(t: &mut OpenHotasTransport) -> Result<String, TransportError> 
     }
 }
 
+pub fn cmd_bootloader(t: &mut OpenHotasTransport) -> Result<String, TransportError> {
+    match t.send(Request::RebootToBootloader)? {
+        Response::Ack => {
+            Ok("Bootloader acknowledged. The RPI-RP2 drive should appear shortly.".into())
+        }
+        Response::Error(e) => Ok(format!("Bootloader reboot failed: {e:?}")),
+        other => Ok(format!("Unexpected response: {other:?}")),
+    }
+}
+
 pub fn cmd_factory_reset(t: &mut OpenHotasTransport) -> Result<String, TransportError> {
     match t.send(Request::FactoryReset)? {
         Response::Ack => Ok(

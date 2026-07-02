@@ -1,1 +1,1 @@
-{}
+{"default":{"identifier":"default","description":"Default desktop permissions for the OpenHOTAS configurator","local":true,"windows":["main"],"permissions":["core:default","dialog:allow-open","dialog:allow-confirm"]}}

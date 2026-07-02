@@ -38,6 +38,13 @@ pub struct CalibrationSession {
     pub max: Option<u16>,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum PendingReset {
+    None,
+    Application,
+    UsbBoot,
+}
+
 // ── Frame I/O Helpers ────────────────────────────────────────────────────
 
 async fn send_frame(
@@ -103,7 +110,7 @@ fn handle_request(
     req: &Request,
     active_config: &mut openhotas_protocol::config::DeviceConfig,
     cal_session: &mut Option<CalibrationSession>,
-    pending_reboot: &mut bool,
+    pending_reset: &mut PendingReset,
 ) -> Response {
     match req {
         Request::GetInfo
@@ -119,7 +126,8 @@ fn handle_request(
         | Request::SaveConfig
         | Request::LoadDefaults
         | Request::FactoryReset
-        | Request::Reboot => handle_write_request(req, active_config, pending_reboot),
+        | Request::Reboot
+        | Request::RebootToBootloader => handle_write_request(req, active_config, pending_reset),
 
         Request::StartCalibration(_)
         | Request::CaptureCalibrationPoint { .. }
@@ -142,7 +150,7 @@ pub async fn cdc_task(
     }
 
     let mut cal_session: Option<CalibrationSession> = None;
-    let mut pending_reboot: bool = false;
+    let mut pending_reset = PendingReset::None;
     let mut parser = FrameParser::new();
     let mut read_buf = [0u8; 64];
     const _: () = assert!(
@@ -168,15 +176,23 @@ pub async fn cdc_task(
                                 &request,
                                 &mut active_config,
                                 &mut cal_session,
-                                &mut pending_reboot,
+                                &mut pending_reset,
                             );
                             if !send_response(&response, &mut frame_buf, &mut sender).await {
                                 break 'connection;
                             }
-                            if pending_reboot {
+                            if pending_reset != PendingReset::None {
                                 // V1.23 (F2): 100ms delay so PC receives Ack before reset
                                 Timer::after_millis(100).await;
-                                cortex_m::peripheral::SCB::sys_reset();
+                                match pending_reset {
+                                    PendingReset::Application => {
+                                        cortex_m::peripheral::SCB::sys_reset()
+                                    }
+                                    PendingReset::UsbBoot => {
+                                        embassy_rp::rom_data::reset_to_usb_boot(0, 0)
+                                    }
+                                    PendingReset::None => {}
+                                }
                             }
                         }
                         Err(_) => {
@@ -197,7 +213,7 @@ pub async fn cdc_task(
         }
 
         cal_session = None;
-        pending_reboot = false;
+        pending_reset = PendingReset::None;
         parser = FrameParser::new();
     }
 }
