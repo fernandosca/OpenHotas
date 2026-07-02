@@ -1,6 +1,6 @@
 [package]
 name = "openhotas-cli"
-version = "1.4.0"
+version = "1.4.1"
 edition = "2021"
 description = "OpenHOTAS PC configuration tool — CLI for V1.23+"
 license = "MIT"
