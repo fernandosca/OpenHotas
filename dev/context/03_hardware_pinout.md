@@ -131,11 +131,14 @@ Cada MT6826S tem seu próprio pino CS. A sequência de transação é:
 | Tamanho | 2MB |
 | Interface | QSPI (gerenciada pelo RP2350) |
 | Setor | 4096 bytes |
-| Setor de calibração | `CALIB_OFFSET` = `FLASH_SIZE - 2 * SECTOR_SIZE` |
-| Setor de configuração | `CONFIG_OFFSET` = `FLASH_SIZE - SECTOR_SIZE` |
+| Slot A (config) | `STORED_V2_SLOT_A` = `FLASH_SIZE - SECTOR_SIZE` (0x1FF000) |
+| Slot B (backup) | `STORED_V2_SLOT_B` = `FLASH_SIZE - 2 * SECTOR_SIZE` (0x1FE000) |
+
+> A persistência usa double-buffer com geração (power-fail safety). Boot lê
+> ambos os slots, usa o de maior geração. Save escreve no slot inativo.
+> Ver layout detalhado em `dev/context/04_software_contracts.md §9`.
 
 > Offsets são **relativos ao início da flash física (0x00)**, não ao XIP base (0x10000000).
-> Ver regras de uso em `dev/context/04_software_contracts.md`.
 
 ---
 
@@ -146,4 +149,4 @@ Não há conflito de função alternativa nos pinos usados.
 
 ---
 
-*OpenHOTAS · Pinout V1.1 · Jun/2026*
+*OpenHOTAS · Pinout V1.4 · Jul/2026*
