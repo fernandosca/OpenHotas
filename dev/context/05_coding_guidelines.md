@@ -566,5 +566,5 @@ cd firmware && cargo fmt --check
 
 ---
 
-*OpenHOTAS · Diretrizes de Código V1.3.0 · Jun/2026 (atualizado: openhotas-filters crate)
+*OpenHOTAS · Diretrizes de Código V1.4 · Jul/2026 (atualizado: openhotas-filters crate)
 *Fontes: Akita, "Clean Code pra Agentes de IA" + "Boas práticas OSS com LLM"*

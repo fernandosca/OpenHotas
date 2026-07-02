@@ -2,7 +2,7 @@
 
 > **LEIA ESTE ARQUIVO PRIMEIRO.**
 > Contrato arquitetural estável. Só muda com decisão explícita documentada em log/.
-> Última atualização: V1.3.0 (Jun/2026)
+> Última atualização: V1.4 (Jul/2026)
 
 ---
 
@@ -34,6 +34,36 @@ O Throttle é um projeto de hardware 100% independente em outro microcontrolador
 - Eixos extras além dos 3 existentes
 - Chaves seletoras de quadrante
 - Qualquer lógica que não seja joystick
+
+---
+
+## 1.1 Versionamento
+
+O projeto usa duas escalas de versão com papéis distintos:
+
+| Escala | Formato | Onde aparece | Exemplo |
+|--------|---------|--------------|---------|
+| **Firmware** | `V1.X` (dezenas) | USB descriptor, CLAUDE.md, context files, changelog | V1.3, V1.4, V1.5 |
+| **Cargo.toml** | `1.X.Y` (semver) | `Cargo.toml` de cada crate, `crates/` | 1.4.0, 1.4.1 |
+
+### Regras
+
+1. **Firmware** incrementa por dezenas: V1.3 → V1.4 → V1.5. Cada dezena
+   representa uma versão com features significativas ou mudanças de comportamento.
+
+2. **Cargo.toml** usa semver com patch: correções pontuais (bugs, segurança)
+   incrementam o patch sem mudar a versão do firmware. Ex: 1.4.0 → 1.4.1
+   continua sendo firmware V1.4.
+
+3. **Context files** (`dev/context/`) referenciam a versão do firmware (V1.4),
+   não a do Cargo.toml (1.4.1).
+
+4. **Build logs** (`dev/logs/`) usam dezenas no nome do arquivo
+   (`v1_4_build.md`), mas podem citar `1.4.1` no conteúdo se relevante.
+
+5. Quando uma correção pontual é aplicada, o firmware continua V1.4 mas o
+   Cargo.toml vai para 1.4.1. O próximo bump de firmware (V1.5) só acontece
+   com nova feature significativa.
 
 ---
 
@@ -119,7 +149,7 @@ Obrigatório para compatibilidade com ferramentas futuras de configuração via 
 
 | Prefixo | Uso |
 |---|---|
-| `STORED_V2_` | Constantes do StoredConfigV2 (ex: `STORED_V2_OFFSET`) |
+| `STORED_V2_` | Constantes do StoredConfigV2 (ex: `STORED_V2_SLOT_A`, `STORED_V2_SLOT_B`) |
 | `DEFAULT_` | Valores padrão de tuning — **apenas** dentro de `constants::tuning` |
 | `MT6826_` | Constantes do sensor encoder |
 | `MCP23S17_` | Constantes do expansor de I/O |
@@ -179,21 +209,24 @@ para multicore (SMP), precisam ser refatorados.
 | `transmute` de lifetimes locais → `'static` (periféricos) | `main.rs` | Inicialização única, single-core, documentado |
 
 > Padrões eliminados na V1.2: `static mut` para SPI (→ `Mutex`) e raw pointer
-> `*mut Ema` na Deadzone (→ flag booleana). Ver `dev/logs/v1_2_build.md`.
+> `*mut Ema` na Deadzone (→ flag booleana). Ver `dev/logs/DECISIONS.md` (seção V1.2).
 >
 > V1.3: eliminados todos os `static mut` em `main.rs` (→ `StaticCell`).
-> HID/CDC State usam `StaticCell::init()` sem `transmute`. Ver `dev/logs/v1_3_build.md §16`.
+> HID/CDC State usam `StaticCell::init()` sem `transmute`. Ver `dev/logs/DECISIONS.md` (seção V1.3).
 >
 > V1.23: removidos `cal_store.rs`, `settings.rs`, `sensor_health.rs` e
 > constantes V1 (`CALIB_OFFSET`, `CONFIG_OFFSET`, `MAGIC_*`).
-> Ver `dev/logs/v1_23_build.md`.
+> Ver `dev/logs/CHANGELOG.md` (seção V1.23, Removed).
 >
 > V1.25: removido `expo.rs` (substituído por `response_curve.rs` piecewise linear).
-> Ver `dev/logs/v1_25_build.md`.
+> Ver `dev/logs/CHANGELOG.md` (seção V1.25).
 >
-> V1.3.0: adicionados axis-to-button, center offset, burst read MCP23S17.
-> Ver `dev/logs/v1_3_build.md`.
+> V1.3: adicionados axis-to-button, center offset, burst read MCP23S17.
+> Ver `dev/logs/CHANGELOG.md` (seção [1.3]).
+>
+> Rastreabilidade completa de decisões e riscos técnicos: `dev/logs/DECISIONS.md`
+> e `dev/logs/RISKS.md`. Changelog funcional por versão: `dev/logs/CHANGELOG.md`.
 
 ---
 
-*OpenHOTAS · Arquitetura V1.3.0 · Jun/2026*
+*OpenHOTAS · Arquitetura V1.4 · Jul/2026*

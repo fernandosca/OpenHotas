@@ -2,7 +2,7 @@
 
 > Regras operacionais do firmware. Complementa `dev/context/01_architecture.md`.
 > Qualquer desvio é classificado como **BUG DE ARQUITETURA**.
-> Última atualização: V1.3.0 (Jun/2026)
+> Última atualização: V1.4 (Jul/2026)
 
 ---
 
@@ -125,7 +125,7 @@ let value = if self.config.inverted { -out } else { out };
 
 ## 3. Calibração — Contrato
 
-`CalibrationData` define os limites físicos de um eixo:
+`CalibrationData` define os limites físicos de um eixo no domínio circular de 15 bits:
 
 ```rust
 pub struct CalibrationData {
@@ -142,10 +142,35 @@ min:    0,
 max:    MT6826_ANGLE_MAX,    // 32767
 ```
 
+### Calibração Circular
+
+O MT6826S é um encoder absoluto circular (0..32767). A calibração usa
+`circular_delta()` para calcular a menor distância signed entre `raw` e `center`
+no círculo de 15 bits:
+
+```rust
+delta = ((raw - center + 16384) mod 32768) - 16384
+```
+
+Isso garante que a transição `32767 → 0` (cruzamento do zero físico) seja
+contínua para qualquer eixo com curso menor que meia revolução.
+
 **Normalização em `Calibration::apply(raw)`:**
-- `raw <= center` → range = `center - min`, resultado ∈ `[-1.0, 0.0]`
-- `raw > center`  → range = `max - center`, resultado ∈ `[0.0, 1.0]`
-- Se range == 0.0 → retorna 0.0 (proteção contra divisão por zero)
+- `delta == 0` → retorna 0.0 (raw == center)
+- `delta` mesmo sinal de `min_delta` → lado do min, resultado ∈ `[-1.0, 0.0)`
+- `delta` sinal oposto → lado do max, resultado ∈ `(0.0, 1.0]`
+- Se calibração inválida (`is_valid` false) → retorna 0.0 (degradado)
+
+### Validez dos Pontos
+
+`is_valid(minimum_span)` exige:
+1. `min_delta != 0` (min diferente de center)
+2. `max_delta != 0` (max diferente de center)
+3. `min` e `max` em lados opostos de center (signum diferentes)
+4. `span >= minimum_span` (curso mínimo ≥ 1000 contagens)
+
+Ordem numérica dos pontos brutos **não importa** — o algoritmo detecta
+automaticamente a direção do sensor.
 
 ### Captura via CDC
 
@@ -235,24 +260,25 @@ pub fn axis_to_i16(v: f32) -> i16 {
 
 ## 7. Flash — Regras de Uso
 
-### Layout de Memória (V1.23)
+### Layout de Memória (V1.4)
 
 ```
 Offset físico          Conteúdo
 ─────────────────────────────────────────────
 0x00000000             [ código + dados ]
       ...
-0x001FE000             [ livre — setor de 4KB recuperado do V1 CALIB_OFFSET ]
-0x001FF000             STORED_V2_OFFSET (último setor, 4KB)
-                       [ MAGIC "OCFG"(4) | storage_version(1) | proto_major(1) |
-                         proto_minor(1) | payload_len(2) |
+0x001FE000             STORED_V2_SLOT_B (setor de backup, 4KB)
+                       [ MAGIC "OCFG"(4) | generation(4) | storage_version(1) |
+                         proto_major(1) | proto_minor(1) | payload_len(2) |
                          postcard(DeviceConfig) | CRC32(4) ]
+0x001FF000             STORED_V2_SLOT_A (setor primário, 4KB)
+                       [ mesmo layout ]
 0x00200000             FLASH_SIZE = 2MB
 ```
 
-> V1.23 removeu `CALIB_OFFSET` e `CONFIG_OFFSET` legados. A única fonte de
-> persistência é `STORED_V2_OFFSET`, que armazena o `DeviceConfig` completo
-> (incluindo calibração, filtros, botões) serializado via postcard + CRC32.
+> Double-buffer com geração para power-fail safety. Boot lê ambos os slots,
+> usa o de maior geração. Save escreve no slot inativo com geração + 1.
+> Ver detalhes em `§9 StoredConfigV2`.
 
 > ⚠️ Offsets são **físicos** (relativos ao início da flash, base `0x00`).
 > **Nunca** usar endereços XIP absolutos (`0x10000000`) nas funções de escrita.
@@ -267,9 +293,10 @@ Offset físico          Conteúdo
 3. **Alinhamento de setor:** O offset de erase/write deve ser múltiplo de `SECTOR_SIZE` (4096).
 
 ```rust
-// Sequência obrigatória para salvar dados (StoredConfigV2):
-flash::erase_sector(STORED_V2_OFFSET)?;   // 1. Apagar
-flash::write_flash(STORED_V2_OFFSET, &buf)?; // 2. Escrever
+// Sequência obrigatória para salvar dados (StoredConfigV2 double-buffer):
+let target = if active_slot == STORED_V2_SLOT_A { STORED_V2_SLOT_B } else { STORED_V2_SLOT_A };
+flash::erase_sector(target)?;       // 1. Apagar slot inativo
+flash::write_flash(target, &buf)?;  // 2. Escrever no slot inativo
 ```
 
 ### Validação de Leitura — Dupla Checagem
@@ -361,25 +388,53 @@ sticks nessa condição compartilham o mesmo serial.
 
 ---
 
-## 9. StoredConfigV2 — Estrutura de Persistência (V1.23)
+## 9. StoredConfigV2 — Estrutura de Persistência (V1.4)
 
-A persistência usa o crate `openhotas-protocol` para serializar `DeviceConfig`
-via postcard. O layout em flash é:
+A persistência usa double-buffer com geração para power-fail safety. Dois slots
+em flash alternam a cada gravação — o slot ativo nunca é alterado durante escrita.
 
 ```text
 Offset  Tamanho  Campo
 ────────────────────────────────────
 0       4        MAGIC = "OCFG"
-4       1        STORAGE_VERSION = 2
-5       1        PROTOCOL_MAJOR
-6       1        PROTOCOL_MINOR
-7       2        PAYLOAD_LEN u16 big-endian
-9       N        PAYLOAD = postcard(DeviceConfig)
-9+N     4        CRC32 (cobre bytes 4 até 9+N-1)
+4       4        GENERATION (u32 LE, incrementa a cada save)
+8       1        STORAGE_VERSION = 2
+9       1        PROTOCOL_MAJOR
+10      1        PROTOCOL_MINOR
+11      2        PAYLOAD_LEN u16 big-endian
+13      N        PAYLOAD = postcard(DeviceConfig)
+13+N    4        CRC32 (cobre bytes 4 até 13+N-1)
 ```
 
-`DeviceConfig` inclui calibração, filtros, limites de curso e configuração de
-botões — tudo em um único setor no `STORED_V2_OFFSET`.
+### Slots
+
+| Slot | Offset | Constante |
+|------|--------|-----------|
+| A | 0x1FF000 | `STORED_V2_SLOT_A` = `FLASH_SIZE - SECTOR_SIZE` |
+| B | 0x1FE000 | `STORED_V2_SLOT_B` = `FLASH_SIZE - 2 * SECTOR_SIZE` |
+
+### Fluxo de Write (`save_config`)
+
+1. Lê ambos os slots, valida magic/version/CRC
+2. Identifica slot ativo (maior geração)
+3. Alvo = slot **inativo**
+4. Serializa payload em buffer RAM
+5. **Erase** do slot inativo
+6. **Write** do buffer (MAGIC + geração+1 + header + payload + CRC32)
+7. Se qualquer etapa falhar → incrementa `FLASH_ERRORS`, retorna erro
+
+### Power-Fail Safety
+
+- Se power falha durante erase do slot inativo → slot ativo intacto
+- Se power falha durante write → CRC rejeita slot parcial no próximo boot
+- **Nunca há janela onde ambos os slots são inválidos**
+
+### Fluxo de Read (`load_config`)
+
+1. Lê ambos os slots via `read_slot` (valida magic, version, protocol major, CRC32)
+2. Ambos válidos → usa o de maior geração
+3. Apenas um válido → usa esse
+4. Nenhum válido → retorna `DeviceConfig::default()`
 
 ### Invariantes
 
@@ -407,4 +462,4 @@ botões — tudo em um único setor no `STORED_V2_OFFSET`.
 
 ---
 
-*OpenHOTAS · Contratos de Software V1.3.0 · Jun/2026*
+*OpenHOTAS · Contratos de Software V1.4 · Jul/2026*

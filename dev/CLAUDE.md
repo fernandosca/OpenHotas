@@ -3,7 +3,7 @@
 # OpenHOTAS Firmware Development Rules
 
 **Projeto:** OpenHOTAS
-**Versão:** V1.23
+**Versão:** V1.4
 **MCU:** RP2350
 **Framework:** Embassy 0.10
 **Ambiente:** Rust `no_std` / `no_heap`
@@ -14,9 +14,14 @@
 
 ```text
 OpenHotas/
-├── firmware/   # Código Rust embarcado
-├── hardware/   # PCB, esquemas, pinout e mecânica
-└── dev/        # LLM, contexto, planos, logs e decisões
+├── firmware/          # Código Rust embarcado
+├── hardware/          # PCB, esquemas, pinout e mecânica
+└── dev/               # LLM, contexto, planos, logs e decisões
+    ├── context/       # 01–05, lidos antes de qualquer edição
+    └── logs/          # Changelog vivo do projeto
+        ├── CHANGELOG.md   # O que mudou — Keep a Changelog, seção [Unreleased] no topo
+        ├── DECISIONS.md   # Por que foi feito assim — ADR-lite
+        └── RISKS.md       # Riscos técnicos aceitos e sua mitigação
 ```
 
 ---
@@ -28,20 +33,34 @@ Antes de qualquer alteração no firmware, ler:
 ```text
 dev/context/
 
-01_*
-02_*
-03_*
-04_*
+01_architecture.md
+02_hardware_specs.md
+03_hardware_pinout.md
+04_software_contracts.md
 05_coding_guidelines.md
 ```
 
 Ordem obrigatória:
 
 ```text
-01 → 02 → 03 → 04 → 05
+01_architecture.md → 02_hardware_specs.md → 03_hardware_pinout.md →
+04_software_contracts.md → 05_coding_guidelines.md
 ```
 
 Caso exista conflito entre regras, interromper a implementação e reportar o conflito.
+
+Adicionalmente, antes de propor entradas de changelog (ver seção 15), ler o
+cabeçalho `<!-- INSTRUÇÃO PARA IA -->` no topo de cada um destes arquivos:
+
+```text
+dev/logs/CHANGELOG.md
+dev/logs/DECISIONS.md
+dev/logs/RISKS.md
+```
+
+Não é necessário ler o corpo inteiro de cada arquivo — apenas o bloco de
+instrução no topo e a seção `## [Unreleased]` mais recente, para não
+duplicar entradas já propostas em sessões anteriores.
 
 ---
 
@@ -466,6 +485,48 @@ Passos para teste em hardware.
 Build  : PASS | FAIL
 Clippy : PASS | FAIL
 Fmt    : PASS | FAIL
+```
+
+## Entradas de Changelog Propostas
+
+Nenhuma tarefa é considerada concluída sem esta seção, mesmo que vazia.
+
+A partir do próprio Relatório Final acima (não peça informação nova ao
+usuário — o relatório já contém tudo necessário), propor as linhas prontas
+para inserção, seguindo estritamente o formato definido no cabeçalho de
+instrução de cada arquivo:
+
+```text
+dev/logs/CHANGELOG.md   → entradas de Added / Changed / Fixed / Removed
+dev/logs/DECISIONS.md   → apenas se a tarefa envolveu escolha entre alternativas
+                           com motivo explícito (não incluir se não houve)
+dev/logs/RISKS.md       → apenas se a tarefa aceitou uma limitação conhecida
+                           sem resolvê-la (não incluir se não houve)
+```
+
+Regras:
+
+* Propor, nunca inserir diretamente nos arquivos sem confirmação do usuário.
+* Uma tarefa pode gerar entrada só em `CHANGELOG.md`, ou nos três — depende
+  do conteúdo real da tarefa, não force `DECISIONS.md` ou `RISKS.md` vazios.
+* Não inventar versão — toda entrada proposta é para `## [Unreleased]`.
+* Reusar o `[área]` correto (`firmware`, `hardware`, `pcb`, `configurador`,
+  `cli`, `crates`, `protocol`, `geral`).
+* Se a tarefa for trivial demais para gerar entrada útil (ex: typo em
+  comentário, formatação), declarar explicitamente "Sem entrada de
+  changelog aplicável" em vez de forçar uma linha vazia de valor.
+
+Formato de saída desta subseção:
+
+```markdown
+### dev/logs/CHANGELOG.md → [Unreleased] → Fixed
+- [firmware] ...
+
+### dev/logs/DECISIONS.md → [Unreleased]
+- [decisão] — motivo: ... — status: Válida
+
+### dev/logs/RISKS.md → Pendentes / a revisitar
+- **[risco]** (Unreleased) — mitigação: ...
 ```
 
 ---
