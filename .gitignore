@@ -11,8 +11,6 @@ target/
 # =========================
 node_modules/
 dist/
-storybook-static/
-.storybook-home/
 gui/src-tauri/target/
 
 # =========================

@@ -8,16 +8,10 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "storybook": "mkdir -p .storybook-home && HOME=$PWD/.storybook-home STORYBOOK_DISABLE_TELEMETRY=1 STORYBOOK_ENABLE_CRASH_REPORTS=0 storybook dev -p 6006",
-    "build-storybook": "mkdir -p .storybook-home && HOME=$PWD/.storybook-home STORYBOOK_DISABLE_TELEMETRY=1 STORYBOOK_ENABLE_CRASH_REPORTS=0 storybook build",
-    "ladle": "ladle serve",
-    "build-ladle": "ladle build",
     "tauri": "tauri"
   },
   "dependencies": {
-    "@radix-ui/react-alert-dialog": "^1.1.2",
     "@radix-ui/react-dialog": "^1.1.2",
-    "@radix-ui/react-label": "^2.1.0",
     "@radix-ui/react-scroll-area": "^1.2.1",
     "@radix-ui/react-select": "^2.1.2",
     "@radix-ui/react-slider": "^1.2.1",
@@ -38,18 +32,14 @@
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
-    "@ladle/react": "^5.1.1",
-    "@storybook/addon-essentials": "^8.6.18",
-    "@storybook/react-vite": "^8.6.18",
     "@tauri-apps/cli": "^2",
     "@types/react": "^18",
     "@types/react-dom": "^18",
-    "@vitejs/plugin-react": "^4",
+    "@vitejs/plugin-react": "^5.2.0",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.49",
-    "storybook": "^8.6.18",
     "tailwindcss": "^3.4.15",
     "typescript": "^5",
-    "vite": "^5"
+    "vite": "^7.3.6"
   }
 }
