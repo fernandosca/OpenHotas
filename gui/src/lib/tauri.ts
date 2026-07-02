@@ -23,6 +23,15 @@ import type {
 
 const browserStartedAt = Date.now();
 
+export const DEVICE_CONNECTION_EVENT = "openhotas:device-connection";
+export const DEVICE_CONFIG_EVENT = "openhotas:device-config";
+
+function notifyConnection(connected: boolean) {
+  window.dispatchEvent(
+    new CustomEvent<boolean>(DEVICE_CONNECTION_EVENT, { detail: connected })
+  );
+}
+
 function mockAxes(): ProcessedAxes {
   const t = (Date.now() - browserStartedAt) / 1000;
   return {
@@ -187,7 +196,8 @@ export async function captureCalibrationPoint(
  * Call saveConfig() to persist to flash.
  */
 export async function finishCalibration(axis: AxisId): Promise<void> {
-  return invoke("finish_calibration", { axis });
+  await invoke("finish_calibration", { axis });
+  window.dispatchEvent(new Event(DEVICE_CONFIG_EVENT));
 }
 
 // ── Serial port discovery (custom command, not in protocol) ──────────────────
@@ -204,12 +214,15 @@ export async function listPorts(): Promise<PortInfo[]> {
 
 /** Connect to device on the given port. */
 export async function connect(portName: string): Promise<DeviceInfo> {
-  return invoke<DeviceInfo>("connect", { portName });
+  const info = await invoke<DeviceInfo>("connect", { portName });
+  notifyConnection(true);
+  return info;
 }
 
 /** Disconnect from current device. */
 export async function disconnect(): Promise<void> {
-  return invoke("disconnect");
+  await invoke("disconnect");
+  notifyConnection(false);
 }
 
 export interface FirmwareUpdateResult {

@@ -16,9 +16,23 @@ async function closeWindow() {
   }
 }
 
+async function startWindowDrag() {
+  if (isTauri()) {
+    await getCurrentWindow().startDragging();
+  }
+}
+
 export function WindowBar() {
   return (
-    <header className="flex h-8 flex-shrink-0 items-center justify-end border-b border-hud-border2 bg-hud-surface px-2">
+    <header
+      data-tauri-drag-region
+      onMouseDown={(event) => {
+        if (event.button === 0 && event.target === event.currentTarget) {
+          void startWindowDrag();
+        }
+      }}
+      className="flex h-8 flex-shrink-0 items-center justify-end border-b border-hud-border2 bg-hud-surface px-2"
+    >
       <button
         type="button"
         aria-label="Minimizar"

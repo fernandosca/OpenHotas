@@ -10,6 +10,7 @@ interface Props {
   axisIndex: 0 | 1 | 2;
   responseCurve: ResponseCurveData;
   deadzonePermille: number;
+  currentOutput?: number | null;
   disabled?: boolean;
 }
 
@@ -70,7 +71,13 @@ function buildResponseCurve(
   });
 }
 
-export function CurveEditor({ axisIndex, responseCurve, deadzonePermille, disabled = false }: Props) {
+export function CurveEditor({
+  axisIndex,
+  responseCurve,
+  deadzonePermille,
+  currentOutput = null,
+  disabled = false,
+}: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
   const { theme } = useTheme();
 
@@ -222,6 +229,29 @@ export function CurveEditor({ axisIndex, responseCurve, deadzonePermille, disabl
     ctx.fillStyle = h2r(disabled ? colors.disabled : color, 0.07);
     ctx.fill();
 
+    // The firmware reports the processed output (Y). Find the closest point
+    // on the response curve so the live marker is not transformed twice.
+    if (!disabled && currentOutput !== null) {
+      const output = (clamp(currentOutput, -32767, 32767) + 32767) / 65534;
+      const livePoint = curve.reduce((closest, point) =>
+        Math.abs(point[1] - output) < Math.abs(closest[1] - output) ? point : closest
+      );
+      const [cx, cy] = toC(livePoint[0], livePoint[1]);
+
+      ctx.beginPath();
+      ctx.arc(cx, cy, 7, 0, Math.PI * 2);
+      ctx.fillStyle = colors.surface;
+      ctx.fill();
+      ctx.strokeStyle = colors.marker;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+    }
+
     // Draw control points P1 and P3
     if (!disabled) {
       const controlPoints = [
@@ -243,7 +273,7 @@ export function CurveEditor({ axisIndex, responseCurve, deadzonePermille, disabl
         ctx.stroke();
       }
     }
-  }, [axisIndex, disabled, responseCurve, deadzonePermille, theme]);
+  }, [axisIndex, currentOutput, disabled, responseCurve, deadzonePermille, theme]);
 
   useEffect(() => {
     draw();
