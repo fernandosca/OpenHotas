@@ -99,6 +99,9 @@ reconexão da aplicação. O build não substitui esse teste físico.
 
 - A logo exibida na sidebar foi substituída pela imagem provisória de aviação
   `gui/src/assets/512x512px.png`.
-- O bundle Tauri passou a usar os ícones Windows `32x32.ico`, `64x64.ico` e o
-  PNG RGBA de 512 px.
+- A interface usa o PNG RGBA de 512 px e o bundle usa o conjunto de ícones
+  desktop gerado a partir dele.
+- O comando oficial `tauri icon` gerou `src-tauri/icons/icon.ico` e os demais
+  tamanhos desktop exigidos pelo empacotador, corrigindo o recurso obrigatório
+  do build Windows.
 - Metadados `Zone.Identifier` do Windows foram adicionados ao `.gitignore`.
