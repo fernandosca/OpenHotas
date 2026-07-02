@@ -65,12 +65,24 @@ export function useCalibration(): UseCalibrationReturn {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const wrap = useCallback(async (fn: () => Promise<void>) => {
+  const wrap = useCallback(async (fn: () => Promise<void>, recoveryAxis?: AxisId) => {
     setBusy(true);
     setError(null);
     try {
       await fn();
     } catch (e) {
+      if (recoveryAxis !== undefined) {
+        // FinishCalibration consumes the firmware session before validating it,
+        // so it also serves as the protocol's safe session-abort operation.
+        try {
+          await finishCalibration(recoveryAxis);
+        } catch {
+          // An error is expected when the captured points are incomplete/invalid.
+        }
+        setStep("idle");
+        setCaptures({ min: null, center: null, max: null });
+        setPersisted(false);
+      }
       setError(String(e));
       throw e;
     } finally {
@@ -85,7 +97,7 @@ export function useCalibration(): UseCalibrationReturn {
         setStep("session_open");
         setCaptures({ min: null, center: null, max: null });
         setPersisted(false);
-      }),
+      }, axis),
     [wrap]
   );
 
@@ -95,7 +107,7 @@ export function useCalibration(): UseCalibrationReturn {
         await captureCalibrationPoint(axis, "Min");
         setCaptures((p) => ({ ...p, min: rawValue }));
         setStep("min_captured");
-      }),
+      }, axis),
     [wrap]
   );
 
@@ -105,7 +117,7 @@ export function useCalibration(): UseCalibrationReturn {
         await captureCalibrationPoint(axis, "Center");
         setCaptures((p) => ({ ...p, center: rawValue }));
         setStep("center_captured");
-      }),
+      }, axis),
     [wrap]
   );
 
@@ -116,7 +128,7 @@ export function useCalibration(): UseCalibrationReturn {
         await finishCalibration(axis);
         setCaptures((p) => ({ ...p, max: rawValue }));
         setStep("complete");
-      }),
+      }, axis),
     [wrap]
   );
 
@@ -126,7 +138,7 @@ export function useCalibration(): UseCalibrationReturn {
         await finishCalibration(axis);
         setStep("complete");
         setPersisted(false);
-      }),
+      }, axis),
     [wrap]
   );
 

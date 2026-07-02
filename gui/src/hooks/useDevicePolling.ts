@@ -13,6 +13,7 @@ import {
   getProcessedAxes,
   getButtonStates,
   getRuntimeStats,
+  DEVICE_CONNECTION_EVENT,
 } from "../lib/tauri";
 import type { ProcessedAxes, ButtonStates, RuntimeStats } from "../types/protocol";
 
@@ -100,12 +101,37 @@ export function useDevicePolling(): DeviceSnapshot {
   }, []);
 
   useEffect(() => {
+    const handleConnection = (event: Event) => {
+      const connected = (event as CustomEvent<boolean>).detail;
+      errorCount.current = 0;
+
+      if (connected) {
+        setSnapshot((prev) => ({
+          ...prev,
+          connected: true,
+          lastErrorMs: null,
+        }));
+        void pollAxes();
+        void pollStats();
+      } else {
+        setSnapshot({
+          axes: null,
+          buttons: null,
+          stats: null,
+          connected: false,
+          lastErrorMs: null,
+        });
+      }
+    };
+
+    window.addEventListener(DEVICE_CONNECTION_EVENT, handleConnection);
     pollAxes();
     pollStats();
     axesTimer.current = setInterval(pollAxes, AXES_INTERVAL_MS);
     statsTimer.current = setInterval(pollStats, STATS_INTERVAL_MS);
 
     return () => {
+      window.removeEventListener(DEVICE_CONNECTION_EVENT, handleConnection);
       if (axesTimer.current) clearInterval(axesTimer.current);
       if (statsTimer.current) clearInterval(statsTimer.current);
     };

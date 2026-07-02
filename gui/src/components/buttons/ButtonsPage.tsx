@@ -28,7 +28,7 @@ function ButtonCell({ index, pressed }: { index: number; pressed: boolean }) {
           : "bg-hud-surface2 border-hud-border2 text-content-dim"
       )}
     >
-      <span className="text-[11px] font-semibold">{index + 1}</span>
+      <span className="text-[11px] font-semibold">{index}</span>
       <span className={cn("h-1 w-1 rounded-full", pressed ? "bg-cyan" : "bg-content-dim")} />
     </div>
   );

@@ -20,7 +20,8 @@
         "maxWidth": 600,
         "maxHeight": 750,
         "resizable": false,
-        "maximizable": false
+        "maximizable": false,
+        "decorations": false
       }
     ],
     "security": {

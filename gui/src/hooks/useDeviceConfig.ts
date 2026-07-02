@@ -10,7 +10,14 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { getConfig, setConfig, saveConfig, loadDefaults } from "../lib/tauri";
+import {
+  getConfig,
+  setConfig,
+  saveConfig,
+  loadDefaults,
+  DEVICE_CONFIG_EVENT,
+  DEVICE_CONNECTION_EVENT,
+} from "../lib/tauri";
 import { withPollingSuspended } from "./useDevicePolling";
 import type { AxisConfig, ButtonConfig, DeviceConfig } from "../types/protocol";
 import { defaultDeviceConfig } from "../types/protocol";
@@ -55,7 +62,19 @@ export function useDeviceConfig(): UseDeviceConfigReturn {
   }, []);
 
   useEffect(() => {
-    reload();
+    const handleConnection = (event: Event) => {
+      if ((event as CustomEvent<boolean>).detail) void reload();
+    };
+    const handleConfigChange = () => void reload();
+
+    window.addEventListener(DEVICE_CONNECTION_EVENT, handleConnection);
+    window.addEventListener(DEVICE_CONFIG_EVENT, handleConfigChange);
+    void reload();
+
+    return () => {
+      window.removeEventListener(DEVICE_CONNECTION_EVENT, handleConnection);
+      window.removeEventListener(DEVICE_CONFIG_EVENT, handleConfigChange);
+    };
   }, [reload]);
 
   const updateAxis = useCallback(

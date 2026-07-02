@@ -6,6 +6,7 @@ import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { UseDeviceConfigReturn } from "@/hooks/useDeviceConfig";
+import type { DeviceSnapshot } from "@/hooks/useDevicePolling";
 import type { AxisId, ResponseCurveData } from "@/types/protocol";
 import { AXIS_INDEX } from "@/types/protocol";
 import { CurveEditor } from "./CurveEditor";
@@ -13,6 +14,7 @@ import { cn } from "@/lib/utils";
 
 interface Props {
   deviceConfig: UseDeviceConfigReturn;
+  snapshot?: DeviceSnapshot;
 }
 
 const CURVE_SETUPS = [
@@ -65,7 +67,15 @@ function curvesEqual(a: ResponseCurveData, b: ResponseCurveData): boolean {
   );
 }
 
-function AxisCurveView({ axisId, deviceConfig }: { axisId: AxisId; deviceConfig: UseDeviceConfigReturn }) {
+function AxisCurveView({
+  axisId,
+  deviceConfig,
+  currentOutput,
+}: {
+  axisId: AxisId;
+  deviceConfig: UseDeviceConfigReturn;
+  currentOutput: number | null;
+}) {
   const idx = AXIS_INDEX[axisId];
   const ax = deviceConfig.config.axes[idx];
   const disabled = !ax.enabled;
@@ -84,13 +94,14 @@ function AxisCurveView({ axisId, deviceConfig }: { axisId: AxisId; deviceConfig:
         axisIndex={idx}
         responseCurve={ax.response_curve}
         deadzonePermille={ax.deadzone_permille}
+        currentOutput={ax.inverted && currentOutput !== null ? -currentOutput : currentOutput}
         disabled={disabled}
       />
     </div>
   );
 }
 
-export function CurvePage({ deviceConfig }: Props) {
+export function CurvePage({ deviceConfig, snapshot }: Props) {
   const [axis, setAxis] = useState<AxisId>("X");
   const [curveHistory, setCurveHistory] = useState<CurveHistoryItem[]>([]);
   const sliderStartRef = useRef<CurveHistoryItem | null>(null);
@@ -101,6 +112,11 @@ export function CurvePage({ deviceConfig }: Props) {
   const activeSetup = CURVE_SETUPS.find((setup) =>
     curvesEqual(activeAxis.response_curve, setup.response_curve),
   );
+  const currentOutputs: Record<AxisId, number | null> = {
+    X: snapshot?.axes?.x ?? null,
+    Y: snapshot?.axes?.y ?? null,
+    Twist: snapshot?.axes?.twist ?? null,
+  };
 
   const pushHistory = (item: CurveHistoryItem) => {
     setCurveHistory((history) => [...history.slice(-29), item]);
@@ -227,7 +243,11 @@ export function CurvePage({ deviceConfig }: Props) {
 
             {(["X", "Y", "Twist"] as AxisId[]).map((axisId) => (
               <TabsContent key={axisId} value={axisId} className="mt-0">
-                <AxisCurveView axisId={axisId} deviceConfig={deviceConfig} />
+                <AxisCurveView
+                  axisId={axisId}
+                  deviceConfig={deviceConfig}
+                  currentOutput={currentOutputs[axisId]}
+                />
               </TabsContent>
             ))}
 

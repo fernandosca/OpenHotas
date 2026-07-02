@@ -168,7 +168,7 @@ export default function App() {
               <>
                 {screen === "axes"        && <AxesPage    snapshot={snapshot} deviceConfig={deviceConfig} />}
                 {screen === "buttons"     && <ButtonsPage snapshot={snapshot} deviceConfig={deviceConfig} />}
-                {screen === "curves"      && <CurvePage  deviceConfig={deviceConfig} />}
+                {screen === "curves"      && <CurvePage snapshot={snapshot} deviceConfig={deviceConfig} />}
                 {screen === "calibration" && <Calibration snapshot={snapshot} deviceConfig={deviceConfig} />}
                 {screen === "diagnostics" && <Diagnostics />}
                 {screen === "settings"    && <SettingsPage deviceConfig={deviceConfig} />}
