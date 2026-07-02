@@ -14,7 +14,7 @@ import { WindowBar }  from "@/components/layout/WindowBar";
 import { disconnect } from "@/lib/tauri";
 import { useDevicePolling } from "@/hooks/useDevicePolling";
 import { useDeviceConfig }  from "@/hooks/useDeviceConfig";
-import openHotasLogo from "@/assets/openhotas-logo.png";
+import openHotasLogo from "@/assets/512x512px.png";
 
 // ── nav items ─────────────────────────────────────────────────────────────────
 type Screen = "axes" | "buttons" | "curves" | "calibration" | "diagnostics" | "settings";
@@ -62,11 +62,11 @@ export default function App() {
           py-3 gap-1
         ">
           {/* Logo mark */}
-          <div className="mb-2 flex h-9 w-9 items-center justify-center overflow-hidden rounded-md border border-cyan/30 bg-hud-surface2">
+          <div className="mb-2 flex h-11 w-11 items-center justify-center overflow-hidden">
             <img
               src={openHotasLogo}
               alt="OpenHOTAS"
-              className="h-full w-full object-cover"
+              className="h-full w-full object-contain"
               draggable={false}
             />
           </div>

@@ -30,6 +30,10 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "icon": []
+    "icon": [
+      "../src/assets/32x32.ico",
+      "../src/assets/64x64.ico",
+      "../src/assets/512x512px.png"
+    ]
   }
 }

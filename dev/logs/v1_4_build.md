@@ -94,3 +94,11 @@ reconexão da aplicação. O build não substitui esse teste físico.
   plugin oficial de diálogo do Tauri e suas dependências.
 - Os schemas e manifestos gerados do Tauri foram atualizados com as permissões
   de diálogo utilizadas pelo seletor e pela confirmação de firmware.
+
+## Identidade visual provisória
+
+- A logo exibida na sidebar foi substituída pela imagem provisória de aviação
+  `gui/src/assets/512x512px.png`.
+- O bundle Tauri passou a usar os ícones Windows `32x32.ico`, `64x64.ico` e o
+  PNG RGBA de 512 px.
+- Metadados `Zone.Identifier` do Windows foram adicionados ao `.gitignore`.
