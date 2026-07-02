@@ -3,6 +3,9 @@
 //! V1.22: desacoplada do CDC. O CDC agora é reservado para protocolo
 //! binário request/response. Logs textuais espontâneos no CDC quebrariam
 //! o parser do protocolo.
+//!
+//! O intervalo de 5s é longo o suficiente para não afetar o barramento
+//! defmt-RTT e curto o suficiente para capturar picos de ciclo.
 
 use crate::diagnostics::runtime_stats;
 use embassy_time::Timer;

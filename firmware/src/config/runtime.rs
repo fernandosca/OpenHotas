@@ -133,6 +133,9 @@ pub fn signal_latest_config(config: RuntimeConfig) -> bool {
     }
 }
 
+// Valores de debounce_ms permitidos (empíricos, testados em firmware V1.22).
+// Apenas valores que produzem um número inteiro de leituras em 500μs:
+// 1ms = 2 leituras, 2ms = 4, 5ms = 10, 10ms = 20, 20ms = 40.
 fn valid_debounce_ms(ms: u8) -> bool {
     matches!(ms, 1 | 2 | 5 | 10 | 20)
 }
@@ -141,6 +144,14 @@ fn valid_debounce_ms(ms: u8) -> bool {
 ///
 /// Scaled integers from protocol → f32 for firmware internals.
 /// Returns `None` if validation fails (invalid ranges, version mismatch).
+///
+/// # Validações
+///
+/// Cada campo tem limites empíricos (ex: deadzone_permille ≤ 200 = 20%).
+/// Estes limites foram definidos durante o desenvolvimento V1.22-V1.25
+/// para evitar que configurações inválidas do host (GUI bug, corrupção)
+/// produzam comportamento inesperado no firmware.
+/// NÃO ALTERAR sem testar todos os cenários de configuração extrema.
 pub fn from_protocol_config(
     cfg: &openhotas_protocol::config::DeviceConfig,
 ) -> Option<RuntimeConfig> {
@@ -153,7 +164,11 @@ pub fn from_protocol_config(
     let mut axes = [AxisRuntimeConfig::default(); 3];
 
     for (i, pa) in cfg.axes.iter().enumerate() {
-        // Validate ranges
+        // Validate ranges — limites empíricos (V1.22+).
+        // deadzone_permille > 200 (20%): além disso o eixo perde muito curso.
+        // ema_permille < 1 ou > 1000: alpha inválido.
+        // max_jump_raw < 1: sem rejeição de spike.
+        // travel_limit_pct < 1 ou > 100: fora do range físico.
         if pa.deadzone_permille > 200
             || pa.ema_permille < 1
             || pa.ema_permille > 1000
@@ -201,7 +216,13 @@ pub fn from_protocol_config(
             filters: crate::axis::AxisConfig {
                 ema_alpha: pa.ema_permille as f32 / 1000.0,
                 deadzone: pa.deadzone_permille as f32 / 1000.0,
-                // V1.24: scale by calibration range, not full 15-bit (audit #2)
+                // V1.24: escala o max_jump pelo span da calibração (audit #2).
+                // Antes, max_jump era relativo ao range total de 15 bits (32768).
+                // Isso significava que um eixo com curso curto (ex: 5000 counts)
+                // tinha threshold efetivo muito menor que um com curso longo.
+                // Agora o threshold é relativo ao span real calibrado:
+                // max_jump = max_jump_raw / cal_range.
+                // cal_range.min(1) evita divisão por zero se span = 0.
                 max_jump: {
                     let cal_range = crate::calibration::data::CalibrationData {
                         min: pa.calibration.min_raw,

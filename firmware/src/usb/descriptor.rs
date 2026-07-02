@@ -1,3 +1,17 @@
+//! Descritor HID do report de gamepad.
+//!
+//! Report de 10 bytes:
+//! - bytes 0-5: 3 eixos analógicos (X, Y, Rx) como signed i16 LE (-32767..+32767)
+//! - bytes 6-9: 32 botões como 32x 1-bit
+//!
+//! NOTA: X (HID) = pitch (eixo Y do firmware), Y (HID) = roll (eixo X).
+//! A troca é feita em `hid_gamepad::GamepadReport::to_bytes()`.
+//! Ver lá para a rationale.
+//!
+//! Report ID não usado (V1.22): só existe 1 report HID no dispositivo.
+//! Adicionar Report ID quebraria compatibilidade com hosts que esperam
+//! report puro sem byte de ID.
+
 pub const HID_REPORT_DESCRIPTOR: &[u8] = &[
     0x05, 0x01, // Usage Page (Generic Desktop)
     0x09, 0x05, // Usage (Gamepad)

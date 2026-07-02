@@ -191,8 +191,12 @@ pub fn handle_calibration_request(
                 Some(s) if s.axis == *axis => s,
                 _ => return Response::Error(ProtocolError::CalibrationError),
             };
-            // Snapshot atômico: lê saúde + raw no mesmo critical_section
-            // para garantir que ambos são do mesmo ciclo do input_task.
+            // Snapshot atômico: lê SENSOR_UNHEALTHY + RAW_AXIS_* no mesmo
+            // critical_section para garantir que ambos são do mesmo ciclo do
+            // input_task. Sem isso, um cenário de borda poderia ler healthy=true
+            // de um ciclo e raw de outro — capturando um valor corrompido.
+            // critical_section desativa interrupts, o que é suficiente porque
+            // o RP2350 roda single-core (embassy num core, segundo core desligado).
             let (healthy, raw) = critical_section::with(|_| {
                 let unhealthy = runtime_stats::SENSOR_UNHEALTHY.load(Ordering::Relaxed);
                 let mask = match axis {
@@ -243,6 +247,10 @@ pub fn handle_calibration_request(
                     if let Some(runtime_cfg) = runtime::from_protocol_config(active_config) {
                         signal_latest_config(runtime_cfg);
                     }
+                    // NOTA: FinishCalibration NÃO salva em flash. O host (GUI)
+                    // deve enviar SaveConfig separadamente para persistir.
+                    // Isso evita desgaste desnecessário da flash durante
+                    // calibração interativa (múltiplos Start/Finish).
                     Response::Ack
                 }
                 _ => Response::Error(ProtocolError::CalibrationError),

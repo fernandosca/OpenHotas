@@ -1,3 +1,23 @@
+//! Pipeline de processamento de sinal para um eixo do joystick.
+//!
+//! Ordem da cadeia:
+//!
+//! ```text
+//! Raw sensor (u16)
+//!   → Calibration (normaliza para [-1, 1])
+//!   → Center Offset (ajuste fino do centro, V1.3)
+//!   → Travel Limits (remapeia curso físico para [-1, 1])
+//!   → MaxJump (rejeita spikes)
+//!   → EMA (suavização)
+//!   → Deadzone (zera centro, remapeia resto)
+//!   → ResponseCurve (curva de sensibilidade)
+//!   → Inversão (opcional)
+//!   → AxisOutput
+//! ```
+//!
+//! Cada eixo (X, Y, Twist) tem sua própria instância de AxisPipeline,
+//! com parâmetros independentes.
+
 use super::{AxisConfig, AxisOutput};
 use crate::calibration::data::{Calibration, CalibrationData};
 use crate::config::runtime::{AxisRuntimeConfig, AxisTravelLimitsRuntime};
@@ -85,6 +105,10 @@ impl AxisPipeline {
     /// before saturating to full output.
     ///
     /// Example: 950 means ±95% travel remaps to full [-1.0, 1.0] output.
+    ///
+    /// Safety: divisão por `limit`. `limit = 0` retorna input sem escala
+    /// (defensivo). Na prática, `travel_limit_permille` mínimo é 1 no protocolo
+    /// (validado em `from_protocol_config`), então `limit >= 0.001`.
     fn apply_travel_limits(&self, input: f32) -> f32 {
         let limit = self.travel.travel_limit_permille as f32 / 1000.0;
         if limit <= 0.0 {
@@ -121,6 +145,11 @@ impl AxisPipeline {
 
         // V1.25: reset EMA and MaxJump when calibration, travel, or
         // enable-status changes — stale history invalidates filter state.
+        // Motivo: se a calibração mudou, o range de entrada dos filtros
+        // mudou — o histórico do EMA (na escala antiga) não é mais válido.
+        // Se travel limits mudaram, o sinal de entrada dos filtros muda de
+        // amplitude — o MaxJump com threshold na escala antiga pode
+        // rejeitar samples legítimos ou deixar passar spikes.
         if cal_changed || travel_changed || (was_disabled && cfg.enabled) {
             self.ema.reset();
             self.max_jump.reset();

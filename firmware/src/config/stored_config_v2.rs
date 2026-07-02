@@ -80,7 +80,9 @@ fn read_slot(offset: u32) -> Option<SlotData> {
     let payload_end = HEADER_SIZE + payload_len;
     let crc_offset = payload_end;
 
-    // CRC32 covers generation(4) + version(1) + major(1) + minor(1) + payload_len(2) + payload(N)
+    // CRC32 cobre: generation(4) + version(1) + major(1) + minor(1) + payload_len(2) + payload(N).
+    // MAGIC (4 bytes) fica de fora: se o magic estiver corrompido, o slot é
+    // rejeitado antes de chegar aqui — funciona como first-pass filter.
     let computed_crc = flash::crc32(&buf[4..crc_offset]);
 
     let mut stored_crc_bytes = [0u8; 4];
@@ -185,13 +187,18 @@ pub fn save_config(config: &DeviceConfig) -> Result<(), flash::FlashError> {
 
     let total_len = payload_end + CRC_SIZE;
 
-    // Erase the target slot first
+    // Power-fail safety:
+    // 1. Apaga o slot target (inativo). Se a energia cair AQUI, o slot
+    //    ativo permanece intacto — o boot lê a config anterior.
+    // 2. Escreve o novo slot. Se a energia cair AQUI, o slot target fica
+    //    com dados parciais — o CRC na leitura detecta e o boot usa o
+    //    slot ativo (com a generation anterior).
+    // Em nenhum cenário ambos os slots ficam inválidos simultaneamente.
     if let Err(e) = flash::erase_sector(target_offset) {
         runtime_stats::FLASH_ERRORS.fetch_add(1, Ordering::Relaxed);
         return Err(e);
     }
 
-    // Write to the target slot
     if let Err(e) = flash::write_flash(target_offset, &buf[..total_len]) {
         runtime_stats::FLASH_ERRORS.fetch_add(1, Ordering::Relaxed);
         return Err(e);

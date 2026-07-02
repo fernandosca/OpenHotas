@@ -1,5 +1,20 @@
+//! OpenHOTAS Firmware — entrada principal e inicialização.
+//!
+//! O boot segue esta ordem:
+//! 1. Inicializa periféricos (flash, SPI, sensores)
+//! 2. Constrói pipelines com defaults
+//! 3. Sobe pilha USB (HID gamepad + CDC protocolo)
+//! 4. Inicializa watchdog
+//! 5. Dispara tasks assíncronas
+//!
+//! A configuração real (calibração, filtros) é carregada pela cdc_task
+//! da flash e sinalizada via CONFIG_SIGNAL na primeira iteração.
+
 #![no_std]
 #![no_main]
+// missing_transmute_annotations: os transmutes de lifetime &'_ → &'static
+// são intencionais e documentados em cada chamada. O lint adicionaria
+// ruído repetitivo sem ganho de segurança.
 #![allow(clippy::missing_transmute_annotations)]
 
 mod axis;
@@ -132,7 +147,10 @@ async fn main(spawner: Spawner) {
     usb_cfg.serial_number = Some(serial);
     usb_cfg.max_power = 100;
     // BCD major.minor derivado do Cargo.toml via build.rs (ex.: 1.3.0 → 0x0130).
+    // build.rs lê CARGO_PKG_VERSION e converte para BCD no formato 0xMMmm
+    // (MM=major, mm=minor). Patch version é ignorado (USB BCD não tem patch).
     // Mantém o descritor USB sincronizado com a versão SemVer automaticamente.
+    // Se falhar (build.rs desatualizado), fallback para 0x0100.
     usb_cfg.device_release = env!("USB_DEVICE_RELEASE_BCD")
         .parse::<u16>()
         .unwrap_or(0x0100);
@@ -172,6 +190,10 @@ async fn main(spawner: Spawner) {
     // Alimentado a cada 500us pelo input_task — margem de ~4000x.
     // Tambem cobre travamento do executor: se qualquer task bloquear o
     // scheduler, o input_task nao roda e o watchdog dispara.
+    //
+    // Importante: o watchdog é iniciado ANTES de spawnar as tasks.
+    // Se o spawn falhar (pouca memória) e o executor não rodar,
+    // o watchdog reinicia o chip em 2000ms — comportamento seguro.
     let mut wdt = Watchdog::new(p.WATCHDOG);
     wdt.start(TimeDuration::from_millis(WATCHDOG_TIMEOUT_MS));
 

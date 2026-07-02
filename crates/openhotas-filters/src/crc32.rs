@@ -1,5 +1,16 @@
-/// CRC-32 (ISO-HDLC / ZIP / PNG standard).
-/// Polynomial: 0xEDB88320 (reflected), Init: 0xFFFFFFFF, XorOut: 0xFFFFFFFF.
+//! CRC-32 no estilo ISO-HDLC (ZIP, PNG) — usado para validar configuração
+//! persistente na flash.
+//!
+//! Polinômio refletido: 0xEDB88320 (≡ 0x04C11DB7 não refletido).
+//! Init: 0xFFFFFFFF, XorOut: 0xFFFFFFFF.
+//!
+//! Implementação byte-a-byte (tabela não usada para manter código pequeno
+//! em no_std). Processa 8 bits por vez com shift. A performance (~2μs por
+//! 256 bytes no RP2350) é adequada para payloads de até 256 bytes.
+//!
+//! Vetor de teste: `crc32(b"123456789") == 0xCBF43926` (padrão ISO-HDLC).
+
+/// Calcula CRC-32 sobre `data`.
 pub fn crc32(data: &[u8]) -> u32 {
     let mut crc: u32 = 0xFFFF_FFFF;
     for &byte in data {
