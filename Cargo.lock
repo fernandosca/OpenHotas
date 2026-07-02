@@ -2867,7 +2867,7 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
 name = "openhotas"
-version = "1.4.0"
+version = "1.4.1"
 dependencies = [
  "cortex-m",
  "cortex-m-rt",
@@ -2891,7 +2891,7 @@ dependencies = [
 
 [[package]]
 name = "openhotas-cli"
-version = "1.4.0"
+version = "1.4.1"
 dependencies = [
  "openhotas-protocol",
  "postcard",
@@ -2908,7 +2908,7 @@ dependencies = [
 
 [[package]]
 name = "openhotas-gui"
-version = "1.4.0"
+version = "1.4.1"
 dependencies = [
  "openhotas-protocol",
  "postcard",
@@ -2922,7 +2922,7 @@ dependencies = [
 
 [[package]]
 name = "openhotas-protocol"
-version = "1.4.0"
+version = "1.4.1"
 dependencies = [
  "heapless 0.8.0",
  "postcard",
