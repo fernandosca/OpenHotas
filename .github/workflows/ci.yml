@@ -73,7 +73,7 @@ jobs:
                     -t elf openhotas.uf2 -t uf2 --platform rp2350 --abs-block
 
             - name: Upload firmware artifact
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: openhotas-firmware-${{ github.sha }}
                   path: openhotas.uf2
@@ -204,7 +204,7 @@ jobs:
               run: npm run tauri build
 
             - name: Upload Windows GUI artifacts
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: openhotas-gui-windows-${{ github.sha }}
                   path: |

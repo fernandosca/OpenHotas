@@ -231,7 +231,7 @@ export function CurveEditor({
 
     // The firmware reports the processed output (Y). Find the closest point
     // on the response curve so the live marker is not transformed twice.
-    if (!disabled && currentOutput !== null) {
+    if (!disabled && currentOutput !== null && currentOutput !== 0) {
       const output = (clamp(currentOutput, -32767, 32767) + 32767) / 65534;
       const livePoint = curve.reduce((closest, point) =>
         Math.abs(point[1] - output) < Math.abs(closest[1] - output) ? point : closest
