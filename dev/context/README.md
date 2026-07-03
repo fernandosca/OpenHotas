@@ -45,9 +45,6 @@ dev/
 │   ├── 04_software_contracts.md     ← pipeline, flash, USB, regras proibidas
 │   └── 05_coding_guidelines.md      ← clean code para agentes (Akita guidelines)
 │
-├── roadmap/                         ← planos revisados (no Git)
-│   └── firmware_update_usb_boot.md  ← update manual via ROM bootloader
-│
 ├── planos_rascunho/                 ← planos que ainda dependem de revisão (local, fora do Git)
 │   ├── roadmap.md                   ← roadmap atual consolidado (em revisão)
 │   ├── v2_roadmap.md                ← visão de V2
