@@ -1,6 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { UnsavedChangesBar } from "@/components/config/UnsavedChangesBar";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -55,7 +54,7 @@ export function ButtonsPage({ snapshot, deviceConfig }: Props) {
 
   return (
     <div className="h-full p-4">
-      <div className="mx-auto flex h-full max-w-5xl flex-col">
+      <div className="mx-auto flex h-full w-full max-w-6xl flex-col">
         <Card className="bg-hud-surface border-hud-border2">
           <CardHeader className="px-4 pt-3 pb-2">
             <CardTitle className="text-[11px] uppercase tracking-widest text-content-muted">
@@ -94,43 +93,8 @@ export function ButtonsPage({ snapshot, deviceConfig }: Props) {
               </Select>
             </FieldRow>
 
-            {error && (
-              <Alert className="mt-3 bg-danger/10 border-danger/40 py-2">
-                <AlertDescription className="text-xs text-danger">{error}</AlertDescription>
-              </Alert>
-            )}
-
-            <Alert className={cn(
-              "mt-3 py-2",
-              dirty
-                ? "bg-warn/10 border-warn/40 animate-fade-in"
-                : "bg-hud-surface2 border-hud-border2"
-            )}>
-              <AlertDescription className="flex items-center justify-between gap-3">
-                <span className={cn("text-xs", dirty ? "text-warn" : "text-content-muted")}>
-                  {dirty ? "Alterações não salvas no flash" : "Sem alterações pendentes"}
-                </span>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={reload}
-                    disabled={!dirty || loading}
-                    className="h-7 text-xs text-content-muted hover:text-content-primary disabled:opacity-40"
-                  >
-                    Descartar
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={save}
-                    disabled={!dirty || loading}
-                    className="h-7 text-xs bg-ok/10 border border-ok/30 text-ok hover:bg-ok/20 disabled:opacity-40"
-                  >
-                    Salvar
-                  </Button>
-                </div>
-              </AlertDescription>
-            </Alert>
+            <UnsavedChangesBar dirty={dirty} loading={loading} error={error}
+              onDiscard={reload} onSave={save} className="mt-3" />
           </CardContent>
         </Card>
       </div>

@@ -71,7 +71,7 @@ export function SettingsPage({ deviceConfig }: Props) {
 
   return (
     <div className="flex h-full flex-col p-4">
-      <Card className="flex min-h-0 flex-1 flex-col bg-hud-surface border-hud-border2">
+      <Card className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col bg-hud-surface border-hud-border2">
         <CardContent className="flex min-h-0 flex-1 flex-col px-4 py-4">
           <div className="mb-3 text-[11px] uppercase tracking-widest text-content-muted">
             Configurações

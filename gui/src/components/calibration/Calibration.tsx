@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList } from "@/components/ui/tabs";
+import { AXIS_IDS, AxisTabTrigger } from "@/components/axes/AxisTabTrigger";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
@@ -13,7 +14,7 @@ import { useCalibration } from "@/hooks/useCalibration";
 import type { AxisId } from "@/types/protocol";
 import { AXIS_INDEX } from "@/types/protocol";
 import { cn } from "@/lib/utils";
-import { AXIS_COLORS, AXIS_RGB } from "@/theme/colors";
+import { AXIS_COLORS } from "@/theme/colors";
 
 interface Props {
   snapshot: DeviceSnapshot;
@@ -78,30 +79,20 @@ export function Calibration({ snapshot, deviceConfig }: Props) {
 
   return (
     <div className="p-4 h-full">
-      <Card className="bg-hud-surface border-hud-border2">
+      <Card className="mx-auto w-full max-w-6xl bg-hud-surface border-hud-border2">
         <CardContent className="p-4 space-y-4">
           <div className="grid grid-cols-2 items-end gap-3">
             <div>
               <div className="mb-1 text-[10px] uppercase tracking-widest text-content-muted">Eixo</div>
               <Tabs value={axis} onValueChange={(v) => { setAxis(v as AxisId); cal.reset(); }}>
                 <TabsList className="bg-hud-surface2 border border-hud-border2 h-8">
-                  {(["X", "Y", "Twist"] as AxisId[]).map((ax) => (
-                    <TabsTrigger
+                  {AXIS_IDS.map((ax) => (
+                    <AxisTabTrigger
                       key={ax}
-                      value={ax}
-                      className={cn(
-                        "text-xs font-mono font-semibold h-6 w-14 px-0",
-                        "data-[state=active]:text-[var(--ax-color)]",
-                        "data-[state=active]:bg-[color:rgba(var(--ax-rgb),0.12)]",
-                      )}
-                      style={{
-                        "--ax-color": AXIS_COLORS[ax],
-                        "--ax-rgb": AXIS_RGB[ax],
-                        opacity: deviceConfig.config.axes[AXIS_INDEX[ax]].enabled ? 1 : 0.45,
-                      } as React.CSSProperties}
-                    >
-                      {ax}
-                    </TabsTrigger>
+                      axis={ax}
+                      variant="subtle"
+                      enabled={deviceConfig.config.axes[AXIS_INDEX[ax]].enabled}
+                    />
                   ))}
                 </TabsList>
               </Tabs>
