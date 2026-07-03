@@ -31,9 +31,20 @@ Ao processar o resumo de uma sessão de trabalho:
 
 ### Added
 
+- [gui] `WindowBar` exibe tela ativa e estado de conexão com indicador semântico integrado à área de arraste
+- [gui] `AxisTabTrigger` centraliza tokens e variantes visuais das abas de eixo em Dashboard, Curves e Calibration
+- [gui] `UnsavedChangesBar` centraliza erros, estado pendente e ações de salvar/descartar configuração
+
 ### Changed
 
+- [gui] Diagnostics separa métricas de runtime, erros e sensores em três seções responsivas com status semântico
+- [gui] Cards e shells das páginas usam largura máxima, espaçamento inicial e alinhamento consistentes entre telas
+- [gui] Cards, sidebar, barra superior e controle de conexão adotam superfícies sem bordas externas e cantos mais discretos
+
 ### Fixed
+
+- [gui] Grade de 32 botões passa a usar 16 colunas em telas largas por meio de `gridTemplateColumns.16`
+- [gui] Status de sensores em Diagnostics avalia `healthy` e `error_count` sem converter textos com `FAULT` para número
 
 ### Removed
 

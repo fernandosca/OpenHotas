@@ -19,6 +19,15 @@ import openHotasLogo from "@/assets/512x512px.png";
 // ── nav items ─────────────────────────────────────────────────────────────────
 type Screen = "axes" | "buttons" | "curves" | "calibration" | "diagnostics" | "settings";
 
+const SCREEN_LABELS: Record<Screen, string> = {
+  axes: "Eixo",
+  buttons: "Botões",
+  curves: "Curva",
+  calibration: "Calibração",
+  diagnostics: "Atividade",
+  settings: "Configurações",
+};
+
 const iconClass = "h-5 w-5";
 
 const NAV: { id: Exclude<Screen, "settings">; label: string; icon: ReactNode }[] = [
@@ -58,7 +67,7 @@ export default function App() {
         {/* ── Sidebar ─────────────────────────────────────────── */}
         <aside className="
           flex flex-col items-center w-16 flex-shrink-0
-          bg-hud-surface border-r border-hud-border2
+          bg-hud-surface
           py-3 gap-1
         ">
           {/* Logo mark */}
@@ -137,10 +146,10 @@ export default function App() {
                 onClick={() => { if (snapshot.connected) void disconnect(); }}
                 aria-label={snapshot.connected ? "Desconectar dispositivo" : "Dispositivo desconectado"}
                 className={cn(
-                  "mb-2 h-9 w-9 rounded-lg border flex items-center justify-center transition-colors",
+                  "mb-2 h-9 w-9 rounded-lg flex items-center justify-center transition-colors",
                   snapshot.connected
-                    ? "border-ok/30 bg-ok/10 text-ok hover:border-danger/40 hover:bg-danger/10 hover:text-danger"
-                    : "border-danger/30 bg-danger/10 text-danger"
+                    ? "bg-ok/10 text-ok hover:bg-danger/10 hover:text-danger"
+                    : "bg-danger/10 text-danger"
                 )}
               >
                 {snapshot.connected ? (
@@ -158,7 +167,10 @@ export default function App() {
 
         {/* ── Main ────────────────────────────────────────────── */}
         <div className="flex flex-col flex-1 min-w-0">
-          <WindowBar />
+          <WindowBar
+            connected={snapshot.connected}
+            screenLabel={SCREEN_LABELS[screen]}
+          />
 
           {/* Screen content */}
           <main className="flex-1 overflow-auto scrollbar-thin animate-fade-in">

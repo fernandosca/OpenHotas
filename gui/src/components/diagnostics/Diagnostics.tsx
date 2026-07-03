@@ -4,6 +4,35 @@ import { getErrorCounters, getSensorStatus, getRuntimeStats } from "@/lib/tauri"
 import type { ErrorCounters, SensorStatusReport, RuntimeStats } from "@/types/protocol";
 import { cn } from "@/lib/utils";
 
+interface DiagnosticRowProps {
+  label: string;
+  value: string;
+  status?: "ok" | "warning";
+}
+
+function DiagnosticRow({ label, value, status }: DiagnosticRowProps) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-[10px] text-content-muted">{label}</span>
+      <span className={cn(
+        "font-mono text-[11px]",
+        status === "ok" ? "text-ok" : status === "warning" ? "text-warn" : "text-content-primary",
+      )}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function DiagnosticSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="rounded-md border border-hud-border bg-hud-surface2/40 p-3">
+      <h2 className="mb-3 text-[10px] uppercase tracking-widest text-content-muted">{title}</h2>
+      <div className="space-y-2">{children}</div>
+    </section>
+  );
+}
+
 export function Diagnostics() {
   const [counters,   setCounters]   = useState<ErrorCounters   | null>(null);
   const [sensorSt,  setSensorSt]    = useState<SensorStatusReport | null>(null);
@@ -30,51 +59,56 @@ export function Diagnostics() {
 
   return (
     <div className="flex h-full flex-col p-4">
-      <Card className="flex min-h-0 flex-1 flex-col bg-hud-surface border-hud-border2">
+      <Card className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col bg-hud-surface border-hud-border2">
         <CardContent className="flex min-h-0 flex-1 flex-col px-4 py-4">
           <div>
-            <div className="mb-2 text-[11px] uppercase tracking-widest text-content-muted">
-              Runtime stats
-            </div>
-            <div className="space-y-2">
-            {[
-              ...(stats ? [
-                ["Reports",       stats.reports_sent.toLocaleString()],
-                ["Send errors",   stats.send_errors.toString()],
-                ["Sensor cycles", stats.sensor_cycles.toLocaleString()],
-                ["Last cycle",    `${stats.last_cycle_us} μs`],
-                ["Max cycle",     `${stats.max_cycle_us} μs`],
-              ] : []),
-              ...(counters ? [
-                ["Proto CRC",  counters.protocol_crc_errors.toString()],
-                ["Sensor CRC", counters.sensor_crc_errors.toString()],
-                ["Magneto",    counters.magnet_errors.toString()],
-                ["Flash",      counters.flash_errors.toString()],
-              ] : []),
-              ...(sensorSt ? [
-                ["Sensor X",     `${sensorSt.x.error_count}${sensorSt.x.healthy ? "" : " · FAULT"}`],
-                ["Sensor Y",     `${sensorSt.y.error_count}${sensorSt.y.healthy ? "" : " · FAULT"}`],
-                ["Sensor Twist", `${sensorSt.twist.error_count}${sensorSt.twist.healthy ? "" : " · FAULT"}`],
-              ] : []),
-            ].map(([label, value]) => (
-              <div key={label} className="flex justify-between items-center">
-                <span className="text-[10px] text-content-muted">{label}</span>
-                <span className={cn(
-                  "font-mono text-[11px]",
-                  ["Proto CRC", "Sensor CRC", "Magneto", "Flash", "Send errors", "Sensor X", "Sensor Y", "Sensor Twist"].includes(label)
-                    ? Number(value) === 0 ? "text-ok" : "text-warn"
-                    : "text-content-primary"
-                )}>
-                  {value}
-                </span>
-              </div>
-            ))}
-            {!stats && !counters && !sensorSt && (
-              <div className="text-xs text-content-dim text-center py-2">—</div>
-            )}
+            <div className="grid gap-3 md:grid-cols-3">
+              <DiagnosticSection title="Runtime">
+                {stats ? (
+                  <>
+                    <DiagnosticRow label="Reports" value={stats.reports_sent.toLocaleString()} />
+                    <DiagnosticRow label="Send errors" value={stats.send_errors.toString()}
+                      status={stats.send_errors === 0 ? "ok" : "warning"} />
+                    <DiagnosticRow label="Sensor cycles" value={stats.sensor_cycles.toLocaleString()} />
+                    <DiagnosticRow label="Last cycle" value={`${stats.last_cycle_us} μs`} />
+                    <DiagnosticRow label="Max cycle" value={`${stats.max_cycle_us} μs`} />
+                  </>
+                ) : <div className="py-2 text-center text-xs text-content-dim">—</div>}
+              </DiagnosticSection>
+
+              <DiagnosticSection title="Erros">
+                {counters ? (
+                  <>
+                    <DiagnosticRow label="Proto CRC" value={counters.protocol_crc_errors.toString()}
+                      status={counters.protocol_crc_errors === 0 ? "ok" : "warning"} />
+                    <DiagnosticRow label="Sensor CRC" value={counters.sensor_crc_errors.toString()}
+                      status={counters.sensor_crc_errors === 0 ? "ok" : "warning"} />
+                    <DiagnosticRow label="Magneto" value={counters.magnet_errors.toString()}
+                      status={counters.magnet_errors === 0 ? "ok" : "warning"} />
+                    <DiagnosticRow label="Flash" value={counters.flash_errors.toString()}
+                      status={counters.flash_errors === 0 ? "ok" : "warning"} />
+                  </>
+                ) : <div className="py-2 text-center text-xs text-content-dim">—</div>}
+              </DiagnosticSection>
+
+              <DiagnosticSection title="Sensores">
+                {sensorSt ? (
+                  <>
+                    {(["x", "y", "twist"] as const).map((sensor) => {
+                      const report = sensorSt[sensor];
+                      const label = sensor === "twist" ? "Sensor Twist" : `Sensor ${sensor.toUpperCase()}`;
+                      return (
+                        <DiagnosticRow key={sensor} label={label}
+                          value={`${report.error_count}${report.healthy ? "" : " · FAULT"}`}
+                          status={report.healthy && report.error_count === 0 ? "ok" : "warning"} />
+                      );
+                    })}
+                  </>
+                ) : <div className="py-2 text-center text-xs text-content-dim">—</div>}
+              </DiagnosticSection>
             </div>
 
-            <div className="mt-2 flex justify-end">
+            <div className="mt-3 flex justify-end">
               <button
                 type="button"
                 onClick={refresh}

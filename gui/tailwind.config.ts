@@ -80,6 +80,9 @@ const config: Config = {
         md: "0.5rem",
         sm: "0.375rem",
       },
+      gridTemplateColumns: {
+        16: "repeat(16, minmax(0, 1fr))",
+      },
       keyframes: {
         "pulse-dot": {
           "0%,100%": { opacity: "1" },

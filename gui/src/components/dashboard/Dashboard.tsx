@@ -6,7 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList } from "@/components/ui/tabs";
+import { AXIS_IDS, AxisTabTrigger } from "@/components/axes/AxisTabTrigger";
+import { UnsavedChangesBar } from "@/components/config/UnsavedChangesBar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { UseDeviceConfigReturn } from "@/hooks/useDeviceConfig";
 import type { DeviceSnapshot } from "@/hooks/useDevicePolling";
@@ -403,17 +405,11 @@ export function AxesPage({ snapshot, deviceConfig }: Props) {
   const htw = isAxisHealthy(ax.unhealthy_mask, "Twist");
 
   return (
-    <div className="p-3 h-full">
+    <div className="h-full p-4">
       <div className="mx-auto flex h-full max-w-6xl flex-col gap-2 min-w-0">
 
         <Card className="bg-hud-surface border-hud-border2">
           <CardContent className="space-y-2.5 p-3">
-            {error && (
-              <Alert className="bg-danger/10 border-danger/40 py-1.5">
-                <AlertDescription className="text-xs text-danger">{error}</AlertDescription>
-              </Alert>
-            )}
-
             <Tabs defaultValue="X">
               <div className="grid grid-cols-[1fr_150px] items-center gap-4">
                 <div className="space-y-3">
@@ -421,63 +417,26 @@ export function AxesPage({ snapshot, deviceConfig }: Props) {
                   <AxisBar label="Y"     value={ax.y}     color={AXIS_COLORS.Y}     healthy={hy} />
                   <AxisBar label="TWIST" value={ax.twist} color={AXIS_COLORS.Twist} healthy={htw} />
                   <TabsList className="bg-hud-surface2 border border-hud-border2 h-8">
-                    {(["X", "Y", "Twist"] as AxisId[]).map((axisId) => (
-                      <TabsTrigger
+                    {AXIS_IDS.map((axisId) => (
+                      <AxisTabTrigger
                         key={axisId}
-                        value={axisId}
-                        className={cn(
-                          "h-6 w-14 px-0 text-xs font-mono font-semibold data-[state=active]:text-content-inverse",
-                          axisId === "X" && "data-[state=active]:bg-axis-x",
-                          axisId === "Y" && "data-[state=active]:bg-axis-y",
-                          axisId === "Twist" && "data-[state=active]:bg-axis-tw",
-                        )}
-                      >
-                        {axisId}
-                      </TabsTrigger>
+                        axis={axisId}
+                      />
                     ))}
                   </TabsList>
                 </div>
                 <HudCanvas x={ax.x} y={ax.y} twist={ax.twist} />
               </div>
 
-              {(["X", "Y", "Twist"] as AxisId[]).map((axisId) => (
+              {AXIS_IDS.map((axisId) => (
                 <TabsContent key={axisId} value={axisId} className="mt-0">
                   <AxisConfigTab axisId={axisId} deviceConfig={deviceConfig} />
                 </TabsContent>
               ))}
             </Tabs>
 
-            <Alert className={cn(
-              "py-1.5",
-              dirty
-                ? "bg-warn/10 border-warn/40 animate-fade-in"
-                : "bg-hud-surface2 border-hud-border2"
-            )}>
-              <AlertDescription className="flex items-center justify-between gap-3">
-                <span className={cn("text-xs", dirty ? "text-warn" : "text-content-muted")}>
-                  {dirty ? "Alterações não salvas no flash" : "Sem alterações pendentes"}
-                </span>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={reload}
-                    disabled={!dirty || loading}
-                    className="h-7 text-xs text-content-muted hover:text-content-primary disabled:opacity-40"
-                  >
-                    Descartar
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={save}
-                    disabled={!dirty || loading}
-                    className="h-7 text-xs bg-ok/10 border border-ok/30 text-ok hover:bg-ok/20 disabled:opacity-40"
-                  >
-                    Salvar
-                  </Button>
-                </div>
-              </AlertDescription>
-            </Alert>
+            <UnsavedChangesBar dirty={dirty} loading={loading} error={error}
+              onDiscard={reload} onSave={save} compact />
           </CardContent>
         </Card>
       </div>
