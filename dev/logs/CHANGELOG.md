@@ -37,12 +37,14 @@ Ao processar o resumo de uma sessão de trabalho:
 
 ### Changed
 
+- [geral] CI valida o backend Tauri com `cargo check` no Windows e reserva a geração de MSI/NSIS para workflows de release
 - [gui] Diagnostics separa métricas de runtime, erros e sensores em três seções responsivas com status semântico
 - [gui] Cards e shells das páginas usam largura máxima, espaçamento inicial e alinhamento consistentes entre telas
 - [gui] Cards, sidebar, barra superior e controle de conexão adotam superfícies sem bordas externas e cantos mais discretos
 
 ### Fixed
 
+- [gui] `WindowBar` usa exclusivamente regiões de arraste nativas do Tauri, evitando comportamento irregular causado pela chamada simultânea de `startDragging()`
 - [gui] Grade de 32 botões passa a usar 16 colunas em telas largas por meio de `gridTemplateColumns.16`
 - [gui] Status de sensores em Diagnostics avalia `healthy` e `error_count` sem converter textos com `FAULT` para número
 
