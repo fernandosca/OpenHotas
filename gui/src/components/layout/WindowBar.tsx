@@ -22,21 +22,10 @@ async function closeWindow() {
   }
 }
 
-async function startWindowDrag() {
-  if (isTauri()) {
-    await getCurrentWindow().startDragging();
-  }
-}
-
 export function WindowBar({ connected, screenLabel }: Props) {
   return (
     <header
       data-tauri-drag-region
-      onMouseDown={(event) => {
-        if (event.button === 0 && !(event.target as HTMLElement).closest("button")) {
-          void startWindowDrag();
-        }
-      }}
       className="flex h-8 flex-shrink-0 items-center justify-between bg-hud-bg pl-3 pr-2"
     >
       <div
@@ -44,6 +33,7 @@ export function WindowBar({ connected, screenLabel }: Props) {
         className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-content-muted"
       >
         <span
+          data-tauri-drag-region
           aria-hidden="true"
           className={cn(
             "h-1.5 w-1.5 rounded-full",
