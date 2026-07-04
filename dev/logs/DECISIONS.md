@@ -28,6 +28,8 @@ Ao processar o resumo de uma sessão:
 
 ## [Unreleased]
 
+- [decisão] `SensorHealth` usa enum de 3 estados (Healthy/Degraded/Failed) em vez de flags booleanas por driver — motivo: um `bool` não distingue "sensor com CRC intermitente" (Degraded, recuperável) de "barramento SPI não inicializado" (Failed, requer reboot). A alternativa seria um registro centralizado no `input_task`, mas isso quebraria o encapsulamento dos drivers (cada driver sabe o que é erro de sensor vs barramento) — status: Válida
+
 ## V1.0
 - SPI compartilhado via `static mut` + `critical_section` — sound em single-core (CPSID/CPSIE). **Superada em V1.2**
 - MCP23S17 com 2 chips e CS compartilhado, diferenciação via opcode. **Válida**

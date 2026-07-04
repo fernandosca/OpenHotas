@@ -65,7 +65,12 @@ impl ResponseCurve {
 
     /// Aplica a curva de resposta a um valor normalizado [-1, 1].
     /// Interpola linearmente entre os pontos de controle.
+    /// NaN é tratado como 0.0 (centro).
     pub fn apply(&self, input: f32) -> f32 {
+        // NaN bypassa clamp — retorna centro sem passar pela interpolação.
+        if input.is_nan() {
+            return 0.0;
+        }
         let input = input.clamp(-1.0, 1.0);
 
         for i in 0..4 {
