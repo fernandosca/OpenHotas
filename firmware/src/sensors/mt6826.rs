@@ -31,7 +31,7 @@
 //! Sem heap. block_for usa busy-wait (microssegundos) dentro da transação SPI.
 //! CS é pino GPIO — toggle manual para controle de timing.
 
-use super::{Sensor, SensorError};
+use super::{Sensor, SensorError, SensorHealth};
 use crate::constants::{
     MT6826_ANGLE_MAX, MT6826_ANGLE_SHIFT, MT6826_CMD_READ_ANGLE, MT6826_CRC8_POLY,
     MT6826_CS_HOLD_US, MT6826_CS_SETUP_US, MT6826_MAGNET_OK_MASK,
@@ -49,6 +49,10 @@ pub struct Mt6826<'d> {
     crc_error_count: u32,
     /// Magnet/voltage errors only. V1.23.
     magnet_error_count: u32,
+    /// Current health status — updated on each `read()`.
+    /// `Failed` means bus-level error (SPI not initialized).
+    /// `Degraded` means sensor-level error (CRC, magnet, not present).
+    health: SensorHealth,
 }
 
 impl<'d> Mt6826<'d> {
@@ -58,6 +62,7 @@ impl<'d> Mt6826<'d> {
             error_count: 0,
             crc_error_count: 0,
             magnet_error_count: 0,
+            health: SensorHealth::Healthy,
         }
     }
 
@@ -131,6 +136,7 @@ impl<'d> Sensor for Mt6826<'d> {
             // e CRC zero formam uma resposta valida segundo o datasheet.
             if buf[2..=5].iter().all(|byte| *byte == 0xFF) {
                 self.error_count = self.error_count.saturating_add(1);
+                self.health = SensorHealth::Degraded;
                 return Err(SensorError::NotPresent);
             }
 
@@ -140,6 +146,7 @@ impl<'d> Sensor for Mt6826<'d> {
             if crc_expected != buf[5] {
                 self.error_count = self.error_count.saturating_add(1);
                 self.crc_error_count = self.crc_error_count.saturating_add(1);
+                self.health = SensorHealth::Degraded;
                 return Err(SensorError::CrcError);
             }
 
@@ -148,6 +155,7 @@ impl<'d> Sensor for Mt6826<'d> {
             if !Self::check_magnet(buf[4]) {
                 self.error_count = self.error_count.saturating_add(1);
                 self.magnet_error_count = self.magnet_error_count.saturating_add(1);
+                self.health = SensorHealth::Degraded;
                 return Err(SensorError::MagnetError);
             }
 
@@ -159,15 +167,25 @@ impl<'d> Sensor for Mt6826<'d> {
             // Clamp defensivo: CRC passou, mas ângulo não pode exceder 32767.
             // Um bit espúrio pode corromper o frame mesmo com CRC válido
             // (colisão CRC — extremamente raro).
+            // Leitura bem-sucedida — restaura health para Healthy se estava Degraded.
+            self.health = SensorHealth::Healthy;
             Ok(angle.min(MT6826_ANGLE_MAX))
         })
         // Se `with_spi1` retornar NotInitialized, converte para SensorError.
-        // O erro original (SpiBusError) é descartado.
-        .map_err(|_| SensorError::NotInitialized)?
+        // Este é um erro de BARRAMENTO: afeta todos os sensores no SPI1.
+        // Marca como `Failed` — não é recuperável sem reboot.
+        .map_err(|_| {
+            self.health = SensorHealth::Failed;
+            SensorError::NotInitialized
+        })?
     }
 
     fn error_count(&self) -> u32 {
         self.error_count
+    }
+
+    fn health(&self) -> SensorHealth {
+        self.health
     }
 }
 

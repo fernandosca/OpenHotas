@@ -30,7 +30,7 @@
 //! Sem heap. Toda I/O é SPI blocking. CS é pino GPIO — toggle manual para
 //! controle fino de timing.
 
-use super::{Sensor, SensorError};
+use super::{Sensor, SensorError, SensorHealth};
 use crate::constants::{
     MCP23S17_DEBOUNCE_COUNT, MCP23S17_GPIOA, MCP23S17_GPPUA, MCP23S17_GPPUB, MCP23S17_IOCON,
     MCP23S17_IODIRA, MCP23S17_IODIRB,
@@ -44,6 +44,11 @@ use embassy_rp::gpio::Output;
 //   CHIP_ADDR_U2 = 0x01  (ADDR0 = VCC)
 const CHIP_ADDR_U1: u8 = 0x00;
 const CHIP_ADDR_U2: u8 = 0x01;
+
+/// Intervalo (em ciclos de `read()`) entre verificações de saúde do MCP.
+/// 2000 ciclos a 500μs ≈ 1 segundo. Suficiente para detectar falha pós-boot
+/// sem adicionar latência significativa ao ciclo de input.
+const HEALTH_CHECK_INTERVAL: u32 = 2000;
 
 /// Máscara que representa todos os botões liberados (32 bits em nível alto).
 /// MCP23S17 tem pull-ups internos; pino não pressionado = 1.
@@ -102,6 +107,13 @@ pub struct Mcp23s<'d> {
     debounce_threshold: u8,
     /// `true` se ambos os chips foram inicializados com sucesso.
     available: bool,
+    /// Current health status — updated on each `read()` and periodic IOCON check.
+    /// `Failed` means bus-level error (SPI not initialized or both chips dead).
+    health: SensorHealth,
+    /// Cycle counter for periodic runtime health check.
+    /// IOCON is read back every HEALTH_CHECK_INTERVAL cycles to detect
+    /// chips that died after boot.
+    cycle_count: u32,
 }
 
 impl<'d> Mcp23s<'d> {
@@ -113,6 +125,8 @@ impl<'d> Mcp23s<'d> {
             error_count: 0,
             debounce_threshold: MCP23S17_DEBOUNCE_COUNT,
             available: false,
+            health: SensorHealth::Healthy,
+            cycle_count: 0,
         }
     }
 
@@ -158,20 +172,24 @@ impl<'d> Mcp23s<'d> {
     }
 
     /// Escreve em um registrador de um chip.
-    /// Em caso de erro SPI, incrementa `error_count` e retorna `SpiError`.
+    /// Em caso de erro SPI, incrementa `error_count`, marca `Degraded` e retorna `SpiError`.
     fn write_reg(&mut self, addr: u8, reg: u8, val: u8) -> Result<(), SensorError> {
         let opcode = write_opcode(addr);
         spi_bus::with_spi0(|spi| {
             self.cs.set_low();
             let write_result = spi.blocking_write(&[opcode, reg, val]).map_err(|_| {
                 self.error_count = self.error_count.saturating_add(1);
+                self.health = SensorHealth::Degraded;
                 SensorError::SpiError
             });
             self.cs.set_high();
             write_result?;
             Ok(())
         })
-        .map_err(|_| SensorError::NotInitialized)?
+        .map_err(|_| {
+            self.health = SensorHealth::Failed;
+            SensorError::NotInitialized
+        })?
     }
 
     /// Lê um registrador de um chip.
@@ -183,13 +201,17 @@ impl<'d> Mcp23s<'d> {
             let mut buf = [opcode, reg, 0xFF];
             let transfer_result = spi.blocking_transfer_in_place(&mut buf).map_err(|_| {
                 self.error_count = self.error_count.saturating_add(1);
+                self.health = SensorHealth::Degraded;
                 SensorError::SpiError
             });
             self.cs.set_high();
             transfer_result?;
             Ok(buf[2])
         })
-        .map_err(|_| SensorError::NotInitialized)?
+        .map_err(|_| {
+            self.health = SensorHealth::Failed;
+            SensorError::NotInitialized
+        })?
     }
 
     /// Lê GPIOA + GPIOB em uma única transação SPI (burst read).
@@ -205,14 +227,21 @@ impl<'d> Mcp23s<'d> {
             let mut buf = [opcode, MCP23S17_GPIOA, 0x00, 0x00];
             let transfer_result = spi.blocking_transfer_in_place(&mut buf).map_err(|_| {
                 self.error_count = self.error_count.saturating_add(1);
+                self.health = SensorHealth::Degraded;
                 SensorError::SpiError
             });
             self.cs.set_high();
             transfer_result?;
             // buf[2] = GPIOA, buf[3] = GPIOB
+            // Leitura bem-sucedida: se health estava Degraded (erro SPI recuperado),
+            // restaura para Healthy.
+            self.health = SensorHealth::Healthy;
             Ok((buf[3] as u16) << 8 | buf[2] as u16)
         })
-        .map_err(|_| SensorError::NotInitialized)?
+        .map_err(|_| {
+            self.health = SensorHealth::Failed;
+            SensorError::NotInitialized
+        })?
     }
 
     /// Filtro de debounce: só atualiza `state` após N leituras idênticas.
@@ -238,6 +267,36 @@ impl<'d> Mcp23s<'d> {
     pub fn set_debounce_threshold(&mut self, readings: u8) {
         self.debounce_threshold = readings.max(1);
     }
+
+    /// Runtime health check: read back IOCON from both chips and verify
+    /// against the expected value (0x0C).
+    ///
+    /// Se um chip não responder (MISO preso, ausente), IOCON lido difere
+    /// de 0x0C e o driver marca `health = Failed` + incrementa error_count.
+    ///
+    /// Esta verificação resolve o risco de "MISO preso em 0x00 após o boot"
+    /// — o readback de IOCON no init só cobre o momento da inicialização.
+    fn runtime_health_check(&mut self) {
+        let iocon0 = match self.read_reg(CHIP_ADDR_U1, MCP23S17_IOCON) {
+            Ok(v) => v,
+            Err(_) => {
+                self.health = SensorHealth::Failed;
+                return;
+            }
+        };
+        let iocon1 = match self.read_reg(CHIP_ADDR_U2, MCP23S17_IOCON) {
+            Ok(v) => v,
+            Err(_) => {
+                self.health = SensorHealth::Failed;
+                return;
+            }
+        };
+
+        if iocon0 != 0x0C || iocon1 != 0x0C {
+            self.error_count = self.error_count.saturating_add(1);
+            self.health = SensorHealth::Failed;
+        }
+    }
 }
 
 impl<'d> Sensor for Mcp23s<'d> {
@@ -255,6 +314,14 @@ impl<'d> Sensor for Mcp23s<'d> {
             return Ok(MCP23S17_BUTTONS_RELEASED);
         }
 
+        // Periodic runtime health check: read back IOCON from both chips.
+        // Detects MCP chips that died after boot (risk: MISO stuck at 0x00
+        // would read as "all buttons pressed" without error flag).
+        self.cycle_count = self.cycle_count.wrapping_add(1);
+        if self.cycle_count.is_multiple_of(HEALTH_CHECK_INTERVAL) {
+            self.runtime_health_check();
+        }
+
         let raw0 = self.read_chip_raw(CHIP_ADDR_U1)?;
         let raw1 = self.read_chip_raw(CHIP_ADDR_U2)?;
 
@@ -267,5 +334,9 @@ impl<'d> Sensor for Mcp23s<'d> {
 
     fn error_count(&self) -> u32 {
         self.error_count
+    }
+
+    fn health(&self) -> SensorHealth {
+        self.health
     }
 }

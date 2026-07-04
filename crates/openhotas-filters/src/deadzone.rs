@@ -66,7 +66,12 @@ impl Deadzone {
     ///
     /// `entrou_na_zona` é `true` apenas no ciclo em que o sinal cruza
     /// de fora para dentro da zona morta. Usado para reset de EMA.
+    /// NaN é tratado como 0.0 (centro), sem alterar `in_zone`.
     pub fn apply(&mut self, input: f32) -> (f32, bool) {
+        // NaN bypassa clamp — trata como centro, sem transição de zona.
+        if input.is_nan() {
+            return (0.0, false);
+        }
         let input = input.clamp(-1.0, 1.0);
         let mut just_entered = false;
 

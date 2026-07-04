@@ -54,7 +54,12 @@ impl Ema {
     /// No primeiro sample (ou após `reset()`), retorna o input sem filtragem.
     /// Nos demais, retorna `alpha * input + (1 - alpha) * last_value`.
     /// Saída sempre clamped em [-1.0, 1.0].
+    /// NaN é rejeitado: mantém `value` atual sem corromper o estado interno.
     pub fn apply(&mut self, input: f32) -> f32 {
+        // NaN bypassa clamp e corromperia o estado — retorna último valor.
+        if input.is_nan() {
+            return self.value;
+        }
         let input = input.clamp(-1.0, 1.0);
         if !self.initialized {
             self.value = input;

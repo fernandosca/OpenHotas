@@ -45,7 +45,7 @@ use crate::constants::{
 use crate::diagnostics::runtime_stats;
 use crate::sensors::mcp23s::Mcp23s;
 use crate::sensors::mt6826::Mt6826;
-use crate::sensors::Sensor;
+use crate::sensors::{Sensor, SensorHealth};
 use crate::usb::hid_gamepad::{GamepadReport, REPORT_SIGNAL};
 use embassy_rp::watchdog::Watchdog;
 use embassy_time::{Duration, Ticker, Timer};
@@ -89,6 +89,31 @@ fn apply_axis_to_button(value: f32, config: &AxisToButtonRuntime, buttons: &mut 
     }
 }
 
+/// Loga transições de saúde do sensor via defmt.
+///
+/// Só emite log quando o estado MUDA (evita spam a cada ciclo de 500μs).
+/// - `Healthy → Degraded`: aviso — qualidade do sinal reduzida.
+/// - `Healthy → Failed`: erro — barramento indisponível.
+/// - `Degraded → Healthy`: recuperação — sensor voltou ao normal.
+fn log_health_transition(sensor: &str, current: SensorHealth, prev: &mut SensorHealth) {
+    if current == *prev {
+        return;
+    }
+    match (current, *prev) {
+        (SensorHealth::Degraded, SensorHealth::Healthy) => {
+            defmt::warn!("Sensor {} health: Healthy → Degraded", sensor);
+        }
+        (SensorHealth::Failed, _) => {
+            defmt::error!("Sensor {} health: Failed (bus error)", sensor);
+        }
+        (SensorHealth::Healthy, SensorHealth::Degraded) => {
+            defmt::info!("Sensor {} health: Degraded → Healthy (recovered)", sensor);
+        }
+        _ => {}
+    }
+    *prev = current;
+}
+
 #[embassy_executor::task]
 pub async fn input_task(
     mut sens_x: Mt6826<'static>,
@@ -123,6 +148,11 @@ pub async fn input_task(
     let mut atb_x = AxisToButtonRuntime::default();
     let mut atb_y = AxisToButtonRuntime::default();
     let mut atb_t = AxisToButtonRuntime::default();
+    // Sensor health tracking — previous state for transition logging
+    let mut prev_health_x = SensorHealth::Healthy;
+    let mut prev_health_y = SensorHealth::Healthy;
+    let mut prev_health_t = SensorHealth::Healthy;
+    let mut prev_health_mcp = SensorHealth::Healthy;
     let mut ticker = Ticker::every(Duration::from_micros(500));
 
     loop {
@@ -162,6 +192,13 @@ pub async fn input_task(
         let rx = sens_x.read().ok();
         let ry = sens_y.read().ok();
         let rt = sens_t.read().ok();
+
+        // Sensor health transition logging — alerta única vez quando o estado muda.
+        // Evita spam: só loga na transição, não a cada ciclo.
+        log_health_transition("X", sens_x.health(), &mut prev_health_x);
+        log_health_transition("Y", sens_y.health(), &mut prev_health_y);
+        log_health_transition("Twist", sens_t.health(), &mut prev_health_t);
+
         // Se o MCP23S17 falhar (SPI), retorna u32::MAX (todos botões liberados)
         // e marca BUTTONS_DEGRADED. Não trava o stick.
         let raw_btns = match mcp.read() {
@@ -172,6 +209,7 @@ pub async fn input_task(
                 u32::MAX
             }
         };
+        log_health_transition("MCP", mcp.health(), &mut prev_health_mcp);
 
         // Track per-sensor error counts (deltas from cumulative sensor counters)
         track_delta!(

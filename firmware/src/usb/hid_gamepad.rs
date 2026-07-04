@@ -54,6 +54,10 @@ impl GamepadReport {
     /// O struct guarda `x = roll` (movimento lateral), `y = pitch` (pra frente/trás).
     /// O HID report usa `X = pitch`, `Y = roll` (convenção de gamepad Windows/Linux).
     /// A troca é intencional: o eixo Y do firmware vira o X do HID.
+    ///
+    /// TODO(hardware-fix): remove swap when new PCB arrives (X/Y soldered correctly).
+    /// Current PCB has X/Y wires physically swapped — easier to fix in code
+    /// than re-solder. Risk: forgetting to remove causes inverted axes again.
     pub fn to_bytes(self) -> [u8; REPORT_SIZE] {
         // X HID = pitch (self.y), Y HID = roll (self.x), Rx = twist
         let x = axis_to_i16(self.y.value).to_le_bytes();

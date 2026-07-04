@@ -235,11 +235,12 @@ fn write_hex_byte(dst: &mut [u8], byte: u8) {
 /// condição passam a compartilhar o mesmo serial, então o configurador deve
 /// alertar o usuário ao encontrar o serial de fallback.
 ///
-/// Usa `StaticCell` para alocar o buffer no heap-less firmware — sem `unsafe`
-/// além do `from_utf8_unchecked` que é seguro pelo invariante local (ASCII hex).
+/// Usa `StaticCell` para alocar o buffer no heap-less firmware.
+/// Totalmente safe: `from_utf8().unwrap()` nunca falha porque o buffer só
+/// contém ASCII hex (0-9, A-F) por construção.
 fn chip_id_serial_static() -> &'static str {
     // Inicializa o buffer via StaticCell (uma vez no boot).
-    // Retorna &'static mut [u8; 18] — sem unsafe.
+    // Retorna &'static mut [u8; 18] — safe, sem unsafe.
     let buf: &'static mut [u8; 18] = SERIAL_STR.init([0u8; 18]);
 
     let chip_id = otp::get_chipid().unwrap_or_else(|_| {
@@ -254,6 +255,7 @@ fn chip_id_serial_static() -> &'static str {
         write_hex_byte(&mut buf[2 + i * 2..4 + i * 2], *byte);
     }
 
-    // Safety: buf contém apenas 'O', 'H' e hex ASCII (0-9, A-F) — UTF-8 válido.
-    unsafe { core::str::from_utf8_unchecked(&buf[..18]) }
+    // buf contém apenas 'O', 'H' e hex ASCII (0-9, A-F) — UTF-8 válido por construção.
+    // from_utf8().unwrap() é seguro aqui porque o invariante garante que nunca falha.
+    core::str::from_utf8(&buf[..18]).unwrap()
 }

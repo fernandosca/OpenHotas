@@ -59,7 +59,12 @@ impl MaxJump {
 
     /// Processa um sample: aceita se delta <= threshold, rejeita se >.
     /// No primeiro sample (ou após `reset()`), aceita sem comparar.
+    /// NaN é rejeitado: mantém `last_valid` sem atualizar estado interno.
     pub fn apply(&mut self, input: f32) -> f32 {
+        // NaN bypassa clamp e corromperia o estado — rejeita e mantém último válido.
+        if input.is_nan() {
+            return self.last_valid.clamp(-1.0, 1.0);
+        }
         if !self.initialized {
             self.last_valid = input;
             self.initialized = true;

@@ -34,9 +34,15 @@ Ao processar o resumo de uma sessão de trabalho:
 - [gui] `WindowBar` exibe tela ativa e estado de conexão com indicador semântico integrado à área de arraste
 - [gui] `AxisTabTrigger` centraliza tokens e variantes visuais das abas de eixo em Dashboard, Curves e Calibration
 - [gui] `UnsavedChangesBar` centraliza erros, estado pendente e ações de salvar/descartar configuração
+- [firmware] `SensorHealth` enum em `sensors/mod.rs` (Healthy/Degraded/Failed) — padroniza distinção entre falha de barramento e falha de sensor individual entre MT6826S e MCP23S17
+- [firmware] `Sensor::health()` no trait `Sensor` — expõe estado de saúde para diagnóstico via CDC
+- [firmware] `runtime_health_check()` em `mcp23s.rs` — readback periódico de IOCON (~1s) para detectar MCP23S17 morto após o boot
+- [firmware] `log_health_transition()` em `input.rs` — loga transições Healthy→Degraded→Failed via defmt sem spam
+- [firmware] `TODO(hardware-fix)` em `hid_gamepad.rs` — documenta swap temporário de X/Y que deve ser removido quando a PCB definitiva chegar
 
 ### Changed
 
+- [firmware] `from_utf8_unchecked` substituído por `from_utf8().unwrap()` em `chip_id_serial_static()` — invariante garante UTF-8 válido (ASCII hex), elimina bloco unsafe desnecessário
 - [geral] CI valida o backend Tauri com `cargo check` no Windows e reserva a geração de MSI/NSIS para workflows de release
 - [gui] Diagnostics separa métricas de runtime, erros e sensores em três seções responsivas com status semântico
 - [gui] Cards e shells das páginas usam largura máxima, espaçamento inicial e alinhamento consistentes entre telas
@@ -47,6 +53,7 @@ Ao processar o resumo de uma sessão de trabalho:
 - [gui] `WindowBar` usa exclusivamente regiões de arraste nativas do Tauri, evitando comportamento irregular causado pela chamada simultânea de `startDragging()`
 - [gui] Grade de 32 botões passa a usar 16 colunas em telas largas por meio de `gridTemplateColumns.16`
 - [gui] Status de sensores em Diagnostics avalia `healthy` e `error_count` sem converter textos com `FAULT` para número
+- [crates] Guarda contra `f32::NAN` em `MaxJump`, `Ema`, `Deadzone` e `ResponseCurve` — NaN bypassava `clamp()` e podia corromper estado interno dos filtros
 
 ### Removed
 
