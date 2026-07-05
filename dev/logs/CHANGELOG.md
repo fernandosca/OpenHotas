@@ -34,6 +34,7 @@ Ao processar o resumo de uma sessão de trabalho:
 - [gui] `WindowBar` exibe tela ativa e estado de conexão com indicador semântico integrado à área de arraste
 - [gui] `AxisTabTrigger` centraliza tokens e variantes visuais das abas de eixo em Dashboard, Curves e Calibration
 - [gui] `UnsavedChangesBar` centraliza erros, estado pendente e ações de salvar/descartar configuração
+- [gui] Release Windows publica executável portable x64 e arquivo SHA-256 junto aos instaladores MSI/NSIS
 - [firmware] `SensorHealth` enum em `sensors/mod.rs` (Healthy/Degraded/Failed) — padroniza distinção entre falha de barramento e falha de sensor individual entre MT6826S e MCP23S17
 - [firmware] `Sensor::health()` no trait `Sensor` — expõe estado de saúde para diagnóstico via CDC
 - [firmware] `runtime_health_check()` em `mcp23s.rs` — readback periódico de IOCON (~1s) para detectar MCP23S17 morto após o boot
@@ -42,6 +43,8 @@ Ao processar o resumo de uma sessão de trabalho:
 
 ### Changed
 
+- [geral] Versões de firmware e GUI atualizadas de `1.4.1` para `1.4.2`
+- [gui] WebView aplica CSP local-only para bloquear scripts, frames, formulários e conexões externas sem impedir IPC do Tauri
 - [firmware] `from_utf8_unchecked` substituído por `from_utf8().unwrap()` em `chip_id_serial_static()` — invariante garante UTF-8 válido (ASCII hex), elimina bloco unsafe desnecessário
 - [geral] CI valida o backend Tauri com `cargo check` no Windows e reserva a geração de MSI/NSIS para workflows de release
 - [gui] Diagnostics separa métricas de runtime, erros e sensores em três seções responsivas com status semântico

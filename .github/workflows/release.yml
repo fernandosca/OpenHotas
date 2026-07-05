@@ -134,10 +134,20 @@ jobs:
         working-directory: gui
         run: npm run tauri build
 
+      - name: Prepare portable Windows GUI
+        shell: pwsh
+        run: |
+          $portable = "OpenHOTAS-Configurator-${{ github.ref_name }}-portable-x64.exe"
+          Copy-Item target/release/openhotas-gui.exe $portable
+          $hash = (Get-FileHash $portable -Algorithm SHA256).Hash.ToLower()
+          "$hash  $portable" | Set-Content "$portable.sha256"
+
       - name: Upload Windows GUI to Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
+            OpenHOTAS-Configurator-${{ github.ref_name }}-portable-x64.exe
+            OpenHOTAS-Configurator-${{ github.ref_name }}-portable-x64.exe.sha256
             target/release/bundle/msi/*.msi
             target/release/bundle/nsis/*.exe
             gui/src-tauri/target/release/bundle/msi/*.msi
