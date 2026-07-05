@@ -31,6 +31,18 @@ Ao processar o resumo de uma sessão de trabalho:
 
 ### Added
 
+### Changed
+
+### Fixed
+
+### Removed
+
+---
+
+## [1.4.2] - 2026-07-04
+
+### Added
+
 - [gui] `WindowBar` exibe tela ativa e estado de conexão com indicador semântico integrado à área de arraste
 - [gui] `AxisTabTrigger` centraliza tokens e variantes visuais das abas de eixo em Dashboard, Curves e Calibration
 - [gui] `UnsavedChangesBar` centraliza erros, estado pendente e ações de salvar/descartar configuração
