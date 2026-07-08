@@ -50,6 +50,10 @@ use crate::usb::hid_gamepad::{GamepadReport, REPORT_SIGNAL};
 use embassy_rp::watchdog::Watchdog;
 use embassy_time::{Duration, Ticker, Timer};
 
+/// Número de leituras idênticas consecutivas antes de tratar um eixo como
+/// resposta espelhada de outro MT6826S no mesmo barramento SPI.
+const MIRRORED_AXIS_FAULT_COUNT: u8 = 16;
+
 /// Macro para tracking de delta entre contadores cumulativos do sensor
 /// e os atomics de diagnóstico.
 ///
@@ -114,6 +118,16 @@ fn log_health_transition(sensor: &str, current: SensorHealth, prev: &mut SensorH
     *prev = current;
 }
 
+fn mirrored_axis_fault(reference: Option<u16>, candidate: Option<u16>, counter: &mut u8) -> bool {
+    if reference.is_some() && reference == candidate {
+        *counter = counter.saturating_add(1);
+    } else {
+        *counter = 0;
+    }
+
+    *counter >= MIRRORED_AXIS_FAULT_COUNT
+}
+
 #[embassy_executor::task]
 pub async fn input_task(
     mut sens_x: Mt6826<'static>,
@@ -153,6 +167,9 @@ pub async fn input_task(
     let mut prev_health_y = SensorHealth::Healthy;
     let mut prev_health_t = SensorHealth::Healthy;
     let mut prev_health_mcp = SensorHealth::Healthy;
+    let mut mirror_xy_count: u8 = 0;
+    let mut mirror_xt_count: u8 = 0;
+    let mut mirror_yt_count: u8 = 0;
     let mut ticker = Ticker::every(Duration::from_micros(500));
 
     loop {
@@ -190,8 +207,19 @@ pub async fn input_task(
         // para Option::None. O pipeline mais abaixo usa `unwrap_or(CENTER)`
         // e marca `healthy=false` — o eixo fica centrado até recuperar.
         let rx = sens_x.read().ok();
-        let ry = sens_y.read().ok();
-        let rt = sens_t.read().ok();
+        let mut ry = sens_y.read().ok();
+        let mut rt = sens_t.read().ok();
+
+        let y_mirrors_x = mirrored_axis_fault(rx, ry, &mut mirror_xy_count);
+        let t_mirrors_x = mirrored_axis_fault(rx, rt, &mut mirror_xt_count);
+        let t_mirrors_y = mirrored_axis_fault(ry, rt, &mut mirror_yt_count);
+
+        if y_mirrors_x {
+            ry = None;
+        }
+        if t_mirrors_x || t_mirrors_y {
+            rt = None;
+        }
 
         // Sensor health transition logging — alerta única vez quando o estado muda.
         // Evita spam: só loga na transição, não a cada ciclo.

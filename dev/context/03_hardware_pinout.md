@@ -79,9 +79,9 @@ no opcode SPI: `opcode = 0b0100_[A2][A1][A0][R/W̄]`
 | SPI1_RX | GP12 | Pino 16 | MISO — dados dos MT6826S |
 | SPI1_SCK | GP14 | Pino 19 | Clock SPI1 |
 | SPI1_TX | GP15 | Pino 20 | MOSI — comandos para MT6826S |
-| CS — Eixo X | GP10 | Pino 14 | Chip Select encoder X |
-| CS — Eixo Y | GP13 | Pino 17 | Chip Select encoder Y |
-| CS — Eixo Twist | GP16 | Pino 21 | Chip Select encoder Twist |
+| CS — Eixo X | GP13 | Pino 17 | Chip Select encoder X |
+| CS — Eixo Y | GP16 | Pino 21 | Chip Select encoder Y |
+| CS — Eixo Twist | GP10 | Pino 14 | Chip Select encoder Twist |
 
 ### Configuração Embassy (`main.rs`)
 
@@ -94,9 +94,9 @@ let spi1 = Spi::new_blocking(p.SPI1, p.PIN_14, p.PIN_15, p.PIN_12, spi1_cfg);
 //                                      SCK       MOSI      MISO
 spi_bus::init_spi1(unsafe { core::mem::transmute(spi1) });
 
-let sens_x = Mt6826::new(Output::new(p.PIN_10, Level::High)); // CS X
-let sens_y = Mt6826::new(Output::new(p.PIN_13, Level::High)); // CS Y
-let sens_t = Mt6826::new(Output::new(p.PIN_16, Level::High)); // CS Twist
+let sens_x = Mt6826::new(Output::new(p.PIN_13, Level::High)); // CS X
+let sens_y = Mt6826::new(Output::new(p.PIN_16, Level::High)); // CS Y
+let sens_t = Mt6826::new(Output::new(p.PIN_10, Level::High)); // CS Twist
 ```
 
 > ⚠️ `embassy_rp` não exporta `MODE_3`. Configurar manualmente via

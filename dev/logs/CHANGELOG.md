@@ -39,6 +39,21 @@ Ao processar o resumo de uma sessão de trabalho:
 
 ---
 
+## [1.4.3] - 2026-07-08
+
+### Changed
+
+- [geral] Versões de firmware e GUI atualizadas de `1.4.2` para `1.4.3`
+- [firmware] Pinout final dos encoders MT6826S atualizado para `X=GP13`, `Y=GP16` e `Twist=GP10`
+- [firmware] Report HID passa a enviar `X`, `Y` e `Rx` diretamente, sem compensação temporária de troca entre X/Y
+
+### Fixed
+
+- [firmware] Driver MT6826S passa a tratar frames `0xFF 0xFF 0xFF 0xFF` e `0x00 0x00 0x00 0x00` como `NotPresent`, evitando eixo ausente aparecer centrado e saudável
+- [firmware] `input_task` detecta leituras espelhadas entre encoders MT6826S e marca o eixo espelhado como falho no `unhealthy_mask`
+
+---
+
 ## [1.4.2] - 2026-07-04
 
 ### Added
@@ -51,7 +66,6 @@ Ao processar o resumo de uma sessão de trabalho:
 - [firmware] `Sensor::health()` no trait `Sensor` — expõe estado de saúde para diagnóstico via CDC
 - [firmware] `runtime_health_check()` em `mcp23s.rs` — readback periódico de IOCON (~1s) para detectar MCP23S17 morto após o boot
 - [firmware] `log_health_transition()` em `input.rs` — loga transições Healthy→Degraded→Failed via defmt sem spam
-- [firmware] `TODO(hardware-fix)` em `hid_gamepad.rs` — documenta swap temporário de X/Y que deve ser removido quando a PCB definitiva chegar
 
 ### Changed
 
@@ -158,7 +172,6 @@ Ao processar o resumo de uma sessão de trabalho:
 - [firmware] `memory.x` com layout de RP2040 incorreto — FLASH alterada para `ORIGIN = 0x10000000`
 - [firmware] MISO flutuante do MT6826S produzia frames zerados com CRC falsamente positivo — pull-up interno habilitado
 - [firmware] Escritas SPI no MCP23S17 retornavam sucesso sem chip conectado — inicialização agora lê de volta os registradores
-- [firmware] CS pins dos encoders X e Y invertidos fisicamente no hardware de teste — contornado via `set-axis --invert`
 - [firmware] `#[allow(static_mut_refs)]` (3 ocorrências) removido — padrões `unsafe` substituídos por `StaticCell::init()`
 
 ### Removed
