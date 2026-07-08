@@ -28,9 +28,9 @@ pub const PIN_INT_MCP23S: u8 = 8; // Wired-OR INT de U1+U2 (não implementado, a
 pub const PIN_SPI1_SCK: u8 = 14;
 pub const PIN_SPI1_MOSI: u8 = 15;
 pub const PIN_SPI1_MISO: u8 = 12;
-pub const PIN_CS_ENCODER_X: u8 = 10;
-pub const PIN_CS_ENCODER_Y: u8 = 13;
-pub const PIN_CS_ENCODER_TWIST: u8 = 16;
+pub const PIN_CS_ENCODER_X: u8 = 13;
+pub const PIN_CS_ENCODER_Y: u8 = 16;
+pub const PIN_CS_ENCODER_TWIST: u8 = 10;
 
 // ── Hardware: MT6826S (SPI1) ─────────────────────────────────────────────
 // VALIDADAS no firmware V1.1 (Datasheet Rev.1.1) — nao alterar sem re-testar

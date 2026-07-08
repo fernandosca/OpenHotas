@@ -134,11 +134,11 @@ async fn main(spawner: Spawner) {
     // Transmute: Converter lifetime local de Mt6826 para 'static.
     // Sound: drivers nunca são dropados, inicialização única, single-core.
     let sens_x: Mt6826<'static> =
-        unsafe { core::mem::transmute(Mt6826::new(Output::new(p.PIN_10, Level::High))) };
-    let sens_y: Mt6826<'static> =
         unsafe { core::mem::transmute(Mt6826::new(Output::new(p.PIN_13, Level::High))) };
-    let sens_t: Mt6826<'static> =
+    let sens_y: Mt6826<'static> =
         unsafe { core::mem::transmute(Mt6826::new(Output::new(p.PIN_16, Level::High))) };
+    let sens_t: Mt6826<'static> =
+        unsafe { core::mem::transmute(Mt6826::new(Output::new(p.PIN_10, Level::High))) };
 
     let driver = Driver::new(p.USB, Irqs);
     let mut usb_cfg = UsbConfig::new(0x16c0, 0x27db);

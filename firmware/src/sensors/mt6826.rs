@@ -3,9 +3,9 @@
 //! # Hardware
 //!
 //! Três MT6826S no barramento SPI1 (mode 3: polarity=IdleHigh, phase=CaptureOnSecondTransition):
-//! - X (roll): CS = PIN_10
-//! - Y (pitch): CS = PIN_13
-//! - Twist (yaw): CS = PIN_16
+//! - X (roll): CS = PIN_13
+//! - Y (pitch): CS = PIN_16
+//! - Twist (yaw): CS = PIN_10
 //!
 //! Cada sensor responde ao comando Burst Angle Read (0x0A) com 3 bytes de dados
 //! (ângulo 15-bit + status) + 1 byte CRC8. O ângulo de 15 bits ocupa os bits
@@ -13,8 +13,8 @@
 //!
 //! # Proteções
 //!
-//! 1. Verificação de sensor ausente: MISO tem pull-up; sensor faltando retorna
-//!    0xFF em todos os bytes — detectado e reportado como `NotPresent`.
+//! 1. Verificação de sensor ausente: MISO flutuante/preso retorna 0xFF ou
+//!    0x00 em todos os bytes — detectado e reportado como `NotPresent`.
 //! 2. CRC8: calculado sobre os 3 bytes de dados, comparado com o byte de CRC
 //!    enviado pelo sensor. Protege contra ruído SPI.
 //! 3. Magnet status: bit 5 do byte de status (buf[4]) indica campo magnético
@@ -23,8 +23,8 @@
 //! # Modos de falha não tratados
 //!
 //! - SPI sem timeout: se MISO travar, a transação nunca termina (ver spi_bus.rs).
-//! - MISO preso em 0x00 não detectado como sensor ausente (0xFF detection),
-//!   mas o CRC8 provavelmente falha e é reportado como CrcError.
+//! - Uma posição real exatamente em 0 com status/CRC zerados é indistinguível
+//!   de MISO preso em 0x00. O firmware prioriza fail-safe e reporta ausente.
 //!
 //! # no_std / heap
 //!
@@ -131,10 +131,12 @@ impl<'d> Sensor for Mt6826<'d> {
             self.cs.set_high();
             transfer_result?;
 
-            // O MISO possui pull-up. Um sensor ausente deixa os quatro bytes
-            // de resposta em 0xFF. Nao rejeite 0x00: angulo zero, status zero
-            // e CRC zero formam uma resposta valida segundo o datasheet.
-            if buf[2..=5].iter().all(|byte| *byte == 0xFF) {
+            // Sensor ausente ou MISO preso pode produzir todos os bytes em
+            // 0xFF ou 0x00. O frame 0x00 passaria no CRC8, então rejeite antes
+            // da validação de CRC para não reportar eixo ausente como saudável.
+            let all_ff = buf[2..=5].iter().all(|byte| *byte == 0xFF);
+            let all_zero = buf[2..=5].iter().all(|byte| *byte == 0x00);
+            if all_ff || all_zero {
                 self.error_count = self.error_count.saturating_add(1);
                 self.health = SensorHealth::Degraded;
                 return Err(SensorError::NotPresent);

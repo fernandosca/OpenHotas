@@ -33,7 +33,6 @@ Ao processar o resumo de uma sessão:
 - **`install_core0_stack_guard()` não implementada** (V1.1) — API não localizada no embassy-rp 0.10. Status de resolução não confirmado no log — **verificar**.
 - **Burst Read não testado em hardware físico** (V1.1/V1.2) — mitigação: checklist em `02_hardware_specs.md §5`, pendente até V1.3. Resolvido na validação em hardware de V1.3.
 - **Conector frouxo no barramento dos sensores** (V1.3) — causa física identificada e corrigida.
-- **CS pins dos encoders X/Y invertidos fisicamente** (V1.3) — contornado via `set-axis --invert`, tratado como Fixed no changelog.
 
 ## Pendentes / a revisitar
 

@@ -46,7 +46,6 @@ Revisão completa de comentários em todos os 32 arquivos `.rs` do firmware + cr
 | 🟡 | MaxJump pode travar eixo em ruído contínuo |
 | 🟡 | Falha de um chip MCP derruba ambos |
 | 🟡 | NotInitialized propagado como sensor ausente |
-| 🟡 | Swap X/Y no HID (armadilha de manutenção) |
 | 🔵 | Filtros sem proteção contra NaN |
 | 🔵 | Power loss entre erase e write perde config |
 
