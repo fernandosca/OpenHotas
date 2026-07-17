@@ -2,12 +2,15 @@
 //!
 //! # Hardware
 //!
-//! Dois MCP23S17 no barramento SPI0, endereçados por hardware:
+//! Um ou dois MCP23S17 no barramento SPI0, endereçados por hardware:
 //! - U1: ADDR=0 (pino ADDR0=GND) → GPIOA/B (16 bits, botões físicos)
 //! - U2: ADDR=1 (pino ADDR0=VCC) → GPIOA/B (16 bits, botões físicos)
 //!
-//! Total: 32 botões, mapeados como bits 0..31 no u32 de saída.
-//! bit 0 = U1.GPIOA.0, bit 15 = U1.GPIOB.7, bit 16 = U2.GPIOA.0, ...
+//! O driver detecta dinamicamente quantos chips estão presentes no boot.
+//! Configuração típica:
+//! - 2 chips: 32 botões, mapeados como bits 0..31 no u32 de saída.
+//!   bit 0 = U1.GPIOA.0, bit 15 = U1.GPIOB.7, bit 16 = U2.GPIOA.0, ...
+//! - 1 chip (ADDR=0): 16 botões, bits 0..15.
 //!
 //! Os chips são configurados com pull-ups internos habilitados e todas
 //! as portas como entrada. Botões conectam o pino ao GND quando pressionados
@@ -21,8 +24,8 @@
 //! - MISO preso em 0x00: a leitura retorna 0x0000 sem erro — botões aparecem
 //!   como "todos pressionados". A verificação `init_chips` detecta no boot,
 //!   mas se a falha ocorrer em operação, não há detecção.
-//! - MCP ausente: detectado pelo readback no `init_chips`. Se a falha ocorrer
-//!   após o init, o driver retorna `MCP23S17_BUTTONS_RELEASED` (perda total
+//! - MCP ausente: detectado pelo readback no `init_chips`. Se todos os chips
+//!   falharem no init, o driver retorna `MCP23S17_BUTTONS_RELEASED` (perda total
 //!   dos botões, sem alarme no HID).
 //!
 //! # no_std / heap
@@ -45,6 +48,9 @@ use embassy_rp::gpio::Output;
 const CHIP_ADDR_U1: u8 = 0x00;
 const CHIP_ADDR_U2: u8 = 0x01;
 
+/// Número máximo de chips MCP23S17 suportados.
+const MAX_CHIPS: usize = 2;
+
 /// Intervalo (em ciclos de `read()`) entre verificações de saúde do MCP.
 /// 2000 ciclos a 500μs ≈ 1 segundo. Suficiente para detectar falha pós-boot
 /// sem adicionar latência significativa ao ciclo de input.
@@ -52,7 +58,6 @@ const HEALTH_CHECK_INTERVAL: u32 = 2000;
 
 /// Máscara que representa todos os botões liberados (32 bits em nível alto).
 /// MCP23S17 tem pull-ups internos; pino não pressionado = 1.
-/// O merge de dois chips de 16 bits resulta em 0xFFFF_FFFF.
 const MCP23S17_BUTTONS_RELEASED: u32 = 0xFFFF_FFFF;
 
 /// Monta o opcode de escrita para o MCP23S17.
@@ -78,6 +83,10 @@ fn read_opcode(addr: u8) -> u8 {
 /// é perdido e recomeça — aceitável para botões.
 #[derive(Debug)]
 struct ChipState {
+    /// Endereço do chip no barramento SPI (0 ou 1).
+    addr: u8,
+    /// `true` se o chip foi inicializado com sucesso e está presente.
+    present: bool,
     /// Valor debounced atual (só muda após `threshold` leituras iguais).
     state: u16,
     /// Último valor lido (antes do debounce).
@@ -87,8 +96,10 @@ struct ChipState {
 }
 
 impl ChipState {
-    fn new() -> Self {
+    fn new(addr: u8) -> Self {
         Self {
+            addr,
+            present: false,
             state: 0xFFFF,
             raw_prev: 0xFFFF,
             stable_cnt: 0,
@@ -99,16 +110,17 @@ impl ChipState {
 #[derive(Debug)]
 pub struct Mcp23s<'d> {
     cs: Output<'d>,
-    chip0: ChipState,
-    chip1: ChipState,
+    /// Array de estados dos chips. O número real de chips presentes
+    /// é determinado dinamicamente durante `init()`.
+    chips: [ChipState; MAX_CHIPS],
     error_count: u32,
     /// Número de leituras consecutivas iguais exigidas para considerar estável.
     /// Default: MCP23S17_DEBOUNCE_COUNT. Configurável via ButtonRuntimeConfig.
     debounce_threshold: u8,
-    /// `true` se ambos os chips foram inicializados com sucesso.
+    /// `true` se pelo menos um chip foi inicializado com sucesso.
     available: bool,
     /// Current health status — updated on each `read()` and periodic IOCON check.
-    /// `Failed` means bus-level error (SPI not initialized or both chips dead).
+    /// `Failed` means bus-level error (SPI not initialized or all chips dead).
     health: SensorHealth,
     /// Cycle counter for periodic runtime health check.
     /// IOCON is read back every HEALTH_CHECK_INTERVAL cycles to detect
@@ -120,8 +132,7 @@ impl<'d> Mcp23s<'d> {
     pub fn new(cs: Output<'d>) -> Self {
         Self {
             cs,
-            chip0: ChipState::new(),
-            chip1: ChipState::new(),
+            chips: [ChipState::new(CHIP_ADDR_U1), ChipState::new(CHIP_ADDR_U2)],
             error_count: 0,
             debounce_threshold: MCP23S17_DEBOUNCE_COUNT,
             available: false,
@@ -130,45 +141,78 @@ impl<'d> Mcp23s<'d> {
         }
     }
 
-    /// Inicializa ambos os chips e marca `available`.
-    /// Se falhar, `available` fica `false` e o `read()` retorna todos liberados.
+    /// Inicializa todos os chips presentes no barramento.
+    /// Tenta configurar cada endereço individualmente.
+    /// Apenas chips que respondem ao readback são marcados como `present`.
+    /// Se NENHUM chip responder, `available` fica `false` e `read()` retorna
+    /// todos liberados.
     pub fn init(&mut self) -> Result<(), SensorError> {
-        let result = self.init_chips();
-        self.available = result.is_ok();
-        result
+        self.init_chips();
+        if self.available {
+            Ok(())
+        } else {
+            Err(SensorError::NotPresent)
+        }
     }
 
-    /// Configura registradores de ambos os chips e verifica por readback.
+    /// Tenta configurar registradores de cada chip e verifica por readback.
     ///
-    /// IOCON = 0x0C: HW por HW address (bit 1=0), Sequential Operation (bit 0=0 → desligado?
-    ///   Na verdade 0x0C = 0000_1100: HAEN=1 (habilita hardware addr), DISSLW=1 (desabilita slew rate).
-    ///   Sequential Operation default é ligado — mas não é alterado.
+    /// Diferente da versão anterior (que exigia TODOS os chips presentes),
+    /// esta versão é tolerante: chips que não respondem são simplesmente
+    /// ignorados. Isso permite usar 1 ou 2 MCP23S17 sem recompilar.
+    ///
+    /// IOCON = 0x0C: HAEN=1 (habilita hardware addr), DISSLW=1 (desabilita slew rate).
     /// IODIR = 0xFF: todas as portas como entrada.
     /// GPPU = 0xFF: pull-ups internos habilitados em todas as portas.
-    fn init_chips(&mut self) -> Result<(), SensorError> {
-        for addr in [CHIP_ADDR_U1, CHIP_ADDR_U2] {
-            self.write_reg(addr, MCP23S17_IOCON, 0x0C)?;
-            self.write_reg(addr, MCP23S17_IODIRA, 0xFF)?;
-            self.write_reg(addr, MCP23S17_IODIRB, 0xFF)?;
-            self.write_reg(addr, MCP23S17_GPPUA, 0xFF)?;
-            self.write_reg(addr, MCP23S17_GPPUB, 0xFF)?;
+    fn init_chips(&mut self) {
+        let mut any_present = false;
+
+        // Usa loop indexado em vez de iter_mut() para evitar borrow冲突
+        // com self.write_reg()/self.read_reg().
+        let chip_addrs = [CHIP_ADDR_U1, CHIP_ADDR_U2];
+        for (i, addr) in chip_addrs.iter().enumerate() {
+            let addr = *addr;
+
+            // Tenta escrever registradores. Se falhar (SPI error), pula este chip.
+            if self.write_reg(addr, MCP23S17_IOCON, 0x0C).is_err() {
+                continue;
+            }
+            if self.write_reg(addr, MCP23S17_IODIRA, 0xFF).is_err() {
+                continue;
+            }
+            if self.write_reg(addr, MCP23S17_IODIRB, 0xFF).is_err() {
+                continue;
+            }
+            if self.write_reg(addr, MCP23S17_GPPUA, 0xFF).is_err() {
+                continue;
+            }
+            if self.write_reg(addr, MCP23S17_GPPUB, 0xFF).is_err() {
+                continue;
+            }
 
             // SPI writes cannot prove that a chip is present. Read back one
             // configured register from each group so a missing/floating MISO
             // cannot be reported as a healthy button bus.
-            // Gap: readback só ocorre no boot. Se um chip morrer em operação,
-            // o driver não detecta e retorna dados espúrios.
-            let verified = self.read_reg(addr, MCP23S17_IOCON)? == 0x0C
-                && self.read_reg(addr, MCP23S17_IODIRA)? == 0xFF
-                && self.read_reg(addr, MCP23S17_IODIRB)? == 0xFF
-                && self.read_reg(addr, MCP23S17_GPPUA)? == 0xFF
-                && self.read_reg(addr, MCP23S17_GPPUB)? == 0xFF;
-            if !verified {
-                self.error_count = self.error_count.saturating_add(1);
-                return Err(SensorError::NotPresent);
+            let verified = self.read_reg(addr, MCP23S17_IOCON).unwrap_or(0xFF) == 0x0C
+                && self.read_reg(addr, MCP23S17_IODIRA).unwrap_or(0xFF) == 0xFF
+                && self.read_reg(addr, MCP23S17_IODIRB).unwrap_or(0xFF) == 0xFF
+                && self.read_reg(addr, MCP23S17_GPPUA).unwrap_or(0xFF) == 0xFF
+                && self.read_reg(addr, MCP23S17_GPPUB).unwrap_or(0xFF) == 0xFF;
+
+            if verified {
+                self.chips[i].present = true;
+                any_present = true;
+                defmt::info!("MCP23S17 at addr 0x{:02X} initialized", addr);
+            } else {
+                defmt::warn!("MCP23S17 at addr 0x{:02X} readback failed, skipping", addr);
             }
         }
-        Ok(())
+
+        self.available = any_present;
+        if !any_present {
+            defmt::warn!("No MCP23S17 chips found on SPI0");
+            self.health = SensorHealth::Failed;
+        }
     }
 
     /// Escreve em um registrador de um chip.
@@ -268,7 +312,7 @@ impl<'d> Mcp23s<'d> {
         self.debounce_threshold = readings.max(1);
     }
 
-    /// Runtime health check: read back IOCON from both chips and verify
+    /// Runtime health check: read back IOCON from present chips and verify
     /// against the expected value (0x0C).
     ///
     /// Se um chip não responder (MISO preso, ausente), IOCON lido difere
@@ -277,24 +321,23 @@ impl<'d> Mcp23s<'d> {
     /// Esta verificação resolve o risco de "MISO preso em 0x00 após o boot"
     /// — o readback de IOCON no init só cobre o momento da inicialização.
     fn runtime_health_check(&mut self) {
-        let iocon0 = match self.read_reg(CHIP_ADDR_U1, MCP23S17_IOCON) {
-            Ok(v) => v,
-            Err(_) => {
-                self.health = SensorHealth::Failed;
-                return;
-            }
-        };
-        let iocon1 = match self.read_reg(CHIP_ADDR_U2, MCP23S17_IOCON) {
-            Ok(v) => v,
-            Err(_) => {
-                self.health = SensorHealth::Failed;
-                return;
-            }
-        };
+        // Usa índice em vez de iter() para evitar borrow conflict com self.read_reg()
+        let chip_addrs = [self.chips[0].addr, self.chips[1].addr];
+        let chip_present = [self.chips[0].present, self.chips[1].present];
 
-        if iocon0 != 0x0C || iocon1 != 0x0C {
-            self.error_count = self.error_count.saturating_add(1);
-            self.health = SensorHealth::Failed;
+        for (addr, present) in chip_addrs.iter().zip(chip_present.iter()) {
+            if !present {
+                continue;
+            }
+            let addr = *addr;
+            match self.read_reg(addr, MCP23S17_IOCON) {
+                Ok(v) if v == 0x0C => continue,
+                _ => {
+                    self.error_count = self.error_count.saturating_add(1);
+                    self.health = SensorHealth::Failed;
+                    return;
+                }
+            }
         }
     }
 }
@@ -302,19 +345,22 @@ impl<'d> Mcp23s<'d> {
 impl<'d> Sensor for Mcp23s<'d> {
     type Output = u32;
 
-    /// Lê o estado combinado dos dois chips MCP23S17.
+    /// Lê o estado combinado dos chips MCP23S17 presentes.
     ///
-    /// Retorno: u32 onde os 16 bits superiores = U2, 16 bits inferiores = U1.
+    /// Retorno: u32 onde os 16 bits superiores = U2 (se presente), 16 bits
+    /// inferiores = U1 (se presente). Chips ausentes contribuem com 0xFFFF
+    /// (todos botões liberados).
     /// Bit = 1 → liberado, Bit = 0 → pressionado (active low).
     ///
-    /// Se a inicialização falhou, retorna `MCP23S17_BUTTONS_RELEASED` (0xFFFF_FFFF)
-    /// sem tentar comunicação SPI — evita travamento.
+    /// Se a inicialização falhou (nenhum chip presente), retorna
+    /// `MCP23S17_BUTTONS_RELEASED` (0xFFFF_FFFF) sem tentar comunicação SPI
+    /// — evita travamento.
     fn read(&mut self) -> Result<u32, SensorError> {
         if !self.available {
             return Ok(MCP23S17_BUTTONS_RELEASED);
         }
 
-        // Periodic runtime health check: read back IOCON from both chips.
+        // Periodic runtime health check: read back IOCON from present chips.
         // Detects MCP chips that died after boot (risk: MISO stuck at 0x00
         // would read as "all buttons pressed" without error flag).
         self.cycle_count = self.cycle_count.wrapping_add(1);
@@ -322,13 +368,20 @@ impl<'d> Sensor for Mcp23s<'d> {
             self.runtime_health_check();
         }
 
-        let raw0 = self.read_chip_raw(CHIP_ADDR_U1)?;
-        let raw1 = self.read_chip_raw(CHIP_ADDR_U2)?;
+        // Lê apenas chips presentes. Chips ausentes mantêm state = 0xFFFF.
+        // Usa loop indexado para evitar borrow conflict com self.read_chip_raw().
+        for i in 0..MAX_CHIPS {
+            if !self.chips[i].present {
+                continue;
+            }
+            if let Ok(raw) = self.read_chip_raw(self.chips[i].addr) {
+                Self::debounce_chip(&mut self.chips[i], raw, self.debounce_threshold);
+            }
+        }
 
-        Self::debounce_chip(&mut self.chip0, raw0, self.debounce_threshold);
-        Self::debounce_chip(&mut self.chip1, raw1, self.debounce_threshold);
-
-        let merged = (self.chip1.state as u32) << 16 | self.chip0.state as u32;
+        // Monta o u32 combinado: chip0 (U1) nos bits 0..15, chip1 (U2) nos bits 16..31.
+        // Se um chip não está presente, seu state permanece 0xFFFF (tudo liberado).
+        let merged = (self.chips[1].state as u32) << 16 | self.chips[0].state as u32;
         Ok(merged)
     }
 
